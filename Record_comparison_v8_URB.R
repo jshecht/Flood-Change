@@ -14,8 +14,12 @@ station_group_urb <- rbind(output_lin_mplus_sig05_vminus_sig05_urb,
 
 wy_order_urb  <- list()
 wy_order_2_urb  <- list()
-wy_order_mean_urb  <- vector(length=nrow(station_group_urb))
-wy_order_max_urb <- vector(length=nrow(station_group_urb))
+#wy_order_mean_urb  <- vector(length=nrow(station_group_urb))
+#wy_order_max_urb <- vector(length=nrow(station_group_urb))
+
+bhc_ts_TIA_vec_station <- list()
+bhc_ts_TIA_vec_station_2 <- list()
+bhc_ts_TIA_vec_station_1_3 <- list()
 
 skew_peak_flow_urb  <- vector(length=nrow(station_group_urb))
 cv_peak_flow_urb  <- vector(length=nrow(station_group_urb))
@@ -410,55 +414,91 @@ Q_99_at_n_iwls_glm_gamma_7f_urb <- vector(length=nrow(station_group_urb))
 p_cc1_iwls_glm_gamma_7f_urb <- vector(length=nrow(station_group_urb)) 
 
 # MAIN LOOP STARTS 
-for (k in 1:nrow(station_group_time)){  
-  wy_time <- wy_station[[station_group_time[k,1]]]
-  wy_order_time[[k]] = wy_time - min(wy_time) + 1
-  wy_order_2_time[[k]] = (wy_time - min(wy_time) + 1)^2
-  wy_order_mean_time[k] = mean(wy_order_time[[k]])
-  wy_order_max_time[k] = max(wy_order_time[[k]])
-  wyear_time <- wy_order_time[[k]] # Add in water year stuff
-  peak_flow_time <- peaks[[station_group_time[k,1]]]/35.3146662127
-  skew_peak_flow_time[k] = skewness(peak_flow_time)
-  cv_peak_flow_time[k] = sd(peak_flow_time)/mean(peak_flow_time)
-  skew_ln_peak_flow_time[k] = skewness(log(peak_flow_time+0.0001))
-  flood_reg1_time.lm = lm(log(peak_flow_time+0.0001) ~ wy_order_time[[k]]) # Add constant to avoid problems with ephemeral streams
-  b0_reg1_time[k] = summary(flood_reg1_time.lm)$coefficients[1,1]
-  b1_reg1_time[k] = summary(flood_reg1_time.lm)$coefficients[2,1]
-  rho_reg1_time[k] = cor(wy_order_time[[k]],log(peak_flow_time+0.01))
-  pval_b0_reg1_time[k] = summary(flood_reg1_time.lm)$coefficients[1,4]
-  pval_b1_reg1_time[k] = summary(flood_reg1_time.lm)$coefficients[2,4]
-  rsquared_reg1_time[k] = as.numeric(summary(flood_reg1_time.lm)$r.squared)
-  res_reg1_time[[k]] = residuals(flood_reg1_time.lm)
-  res_dof_corr_time[k] = length(wy_order_time[[k]])/(length(wy_order_time[[k]])-2)
-  adj_r2_corr_time[k] = (length(wy_order_time[[k]]) - 1)/(length(wy_order_time[[k]]) - 2)
-  res_var_time[k] = res_dof_corr_time[k] * var(res_reg1_time[[k]])
-  cond_med_at_n_time[k] = b0_reg1_time[k] + b1_reg1_time[k] * max(wy_order_time[[k]]) 
-  cond_mean_at_n_time[k] = cond_med_at_n_time[k] + 0.5 * res_var_time[k] #Assuming homoscedasticity
-  Q_99_at_n_med_only_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1) * sqrt(res_var_time[k]))
-  Q_99_at_n_no_trend_time[k] = exp(mean(log(peak_flow_time + 0.01)) + qnorm(0.99,0,1) * sd(log(peak_flow_time+0.01)))  
+for (k in 1:nrow(station_group_urb)){  
+  
+  # Create vector of TIA to match water years
+  # FIX: bhc_ts_ann_mat
+  wy_in_1940_2016 <- vector(mode="logical",length=ncol(bhc_ts_ann_mat))
+  for(i in 1:77){
+    if((1939 + i) %in% wy == TRUE){
+      wy_in_1940_2016[i] = TRUE
+    } else {
+      wy_in_1940_2016[i] = FALSE
+    }
+  }
+  
+  # Determine water year order for urban equation
+  wy_order_1940_2016 <- wy_in_1940_2016*seq(1,77,1)
+  wy_order_urb[[k]] =wy_order_1940_2016[wy_order_1940_2016>0]
+  
+  bhc_ts_TIA_vec <- as.numeric(df_bhc_ts_urb_final_ann[k,6:82][wy_in_1940_2016 == TRUE])
+  
+  bhc_ts_TIA_vec_station[[k]] = bhc_ts_TIA_vec
+  bhc_ts_TIA_vec_station_2[[k]] = bhc_ts_TIA_vec^2
+  bhc_ts_TIA_vec_station_1_3[[k]] = bhc_ts_TIA_vec^(1/3)
+  
+  # Remove peak flows earlier than 1940 (in cfs)
+  wy_pre1940 <- vector(mode="logical",length(wy))
+  for(i in 1:length(wy)){
+    if(wy[i] < 1940){
+      wy_pre1940[i] = TRUE
+    } else {
+      wy_pre1940[i] = FALSE
+    }
+  }
+  
+  peak_va_urb <- peak_va[wy_pre1940==FALSE]
+  peaks_urb[[k]] <- peak_va_urb
+#  wy_time <- wy_station[[station_group_time[k,1]]]
+#  wy_order_time[[k]] = wy_time - min(wy_time) + 1
+#  wy_order_2_time[[k]] = (wy_time - min(wy_time) + 1)^2
+#  wy_order_mean_time[k] = mean(wy_order_time[[k]])
+#  wy_order_max_time[k] = max(wy_order_time[[k]])
+#  wyear_time <- wy_order_time[[k]] # Add in water year stuff
+#  peak_flow_urb <- peaks_urb[[station_group_urb[k,1]]]/35.3146662127
+  
+  peak_flow_urb <- peaks_urb[[k]] 
+  skew_peak_flow_urb[k] = skewness(peak_flow_urb)
+  cv_peak_flow_urb[k] = sd(peak_flow_urb)/mean(peak_flow_urb)
+  skew_ln_peak_flow_urb[k] = skewness(log(peak_flow_urb+0.0001))
+  flood_reg1_urb.lm = lm(log(peak_flow_urb+0.0001) ~  bhc_ts_TIA_vec_station[[k]]) # Add constant to avoid problems with ephemeral streams
+  b0_reg1_urb[k] = summary(flood_reg1_urb.lm)$coefficients[1,1]
+  b1_reg1_urb[k] = summary(flood_reg1_urb.lm)$coefficients[2,1]
+  rho_reg1_urb[k] = cor(bhc_ts_TIA_vec_station[[k]],log(peak_flow_urb+0.01))
+  pval_b0_reg1_urb[k] = summary(flood_reg1_urb.lm)$coefficients[1,4]
+  pval_b1_reg1_urb[k] = summary(flood_reg1_urb.lm)$coefficients[2,4]
+  rsquared_reg1_urb[k] = as.numeric(summary(flood_reg1_urb.lm)$r.squared)
+  res_reg1_urb[[k]] = residuals(flood_reg1_urb.lm)
+  res_dof_corr_urb[k] = length(bhc_ts_TIA_vec_station[[k]])/(length(bhc_ts_TIA_vec_station[[k]])-2)
+  adj_r2_corr_urb[k] = (length(bhc_ts_TIA_vec_station[[k]]) - 1)/(length(bhc_ts_TIA_vec_station[[k]]) - 2)
+  res_var_urb[k] = res_dof_corr_urb[k] * var(res_reg1_urb[[k]])
+  cond_med_at_n_urb[k] = b0_reg1_urb[k] + b1_reg1_urb[k] * max(bhc_ts_TIA_vec_station[[k]]) 
+  cond_mean_at_n_urb[k] = cond_med_at_n_urb[k] + 0.5 * res_var_urb[k] #Assuming homoscedasticity
+  Q_99_at_n_med_only_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1) * sqrt(res_var_urb[k]))
+  Q_99_at_n_no_trend_urb[k] = exp(mean(log(peak_flow_urb + 0.01)) + qnorm(0.99,0,1) * sd(log(peak_flow_urb+0.01)))  
   
   # View conditional mean model 
-  plot(wy_time,log(peak_flow_time+0.01),xlab="Water year",ylab= "ln(Annual peak flow, cfs)") 
-  title(c(as.character(station_group_time$bhc_ts_urb_final.STANAME[k]),
-          as.character(station_group_time$bhc_ts_urb_final.STAID_TEXT[k]),
+  plot(bhc_ts_TIA_vec_station[[k]],log(peak_flow_urb+0.01),xlab="Water year",ylab= "ln(Annual peak flow, cfs)") 
+  title(c(as.character(station_group_urb$bhc_ts_urb_final.STANAME[k]),
+          as.character(station_group_urb$bhc_ts_urb_final.STAID_TEXT[k]),
           "DA",
-          as.numeric(station_group_time$bhc_ts_urb_final.DRAIN_SQKM[k])),
+          as.numeric(station_group_urb$bhc_ts_urb_final.DRAIN_SQKM[k])),
         cex.main=0.8) 
-  text(min(wy_time)+5,max(log(peak_flow_time+0.01))-0.5,bquote(~R^2 ==. (round(rsquared_reg1_time[k],3))),cex=0.7) 
+  text(min(bhc_ts_TIA_vec_station[[k]])+1,max(log(peak_flow_urb+0.01))-0.5,bquote(~R^2 ==. (round(rsquared_reg1_urb[k],3))),cex=0.7) 
   
   # View transformed residuals assuming wy_order~res
-  plot(wy_time,(res_reg1_time[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance ^ (2/3)")
+  plot(bhc_ts_TIA_vec_station[[k]],(res_reg1_urb[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance ^ (2/3)")
   title(c(as.character(station_group_time$bhc_ts_urb_final.STANAME[k]),
           as.character(station_group_time$bhc_ts_urb_final.STAID_TEXT[k]),
           "DA",
           as.numeric(station_group_time$bhc_ts_urb_final.DRAIN_SQKM[k])),
         cex.main=0.8)
-  text(min(wy_time)+5,max((res_reg1_time[[k]]^2)^(1/3))-0.08,bquote(~R^2 ==.(round(rsquared_5a_time[k],3))),cex=0.7)
+  text(min(bhc_ts_TIA_vec_station[[k]])+1,max((res_reg1_urb[[k]]^2)^(1/3))-0.08,bquote(~R^2 ==.(round(rsquared_5a_time[k],3))),cex=0.7)
   
   # Type II errors using methods from Vogel et al. (2013) and Rosner et al. (2014)
-  delta_b1_reg1_true_time[k] = 1/(sqrt(1/cor(wy_order_time[[k]],log(peak_flow_time+0.0001))^2-1))
-  tt_b1_reg1_time[k] = abs(qt(1-pval_b1_reg1_time[k],length(wy_order_time[[k]])-2))
-  t2_error_b1_reg1_time[k] = pt(tt_b1_reg1_time[k] - delta_b1_reg1_true_time[k]*sqrt(length(wy_order_time[[k]])),length(wy_order_time[[k]])-2)
+  delta_b1_reg1_true_urb[k] = 1/(sqrt(1/cor(bhc_ts_TIA_vec_station[[k]],log(peak_flow_urb+0.0001))^2-1))
+  tt_b1_reg1_urb[k] = abs(qt(1-pval_b1_reg1_urb[k],length(bhc_ts_TIA_vec_station[[k]])-2))
+  t2_error_b1_reg1_urb[k] = pt(tt_b1_reg1_urb[k] - delta_b1_reg1_true_urb[k]*sqrt(length(bhc_ts_TIA_vec_station[[k]])),length(bhc_ts_TIA_vec_station[[k]])-2)
   
   
   # View transformed residuals assuming wy_order[[k]]~ln(res^2)
@@ -469,147 +509,59 @@ for (k in 1:nrow(station_group_time)){
   #        "DA",
   #        as.numeric(as.character(site_info[station_group_time[k,1],6]))),cex.main=0.8)
   
-  # Fit conditional variance model A using two-stage least squares with an Anscombe transformation
-  res_reg1_2_3_time <- (res_reg1_time[[k]]^2)^(1/3)
-  wy_order_1_3_time <- wy_order_time[[k]]^(1/3)
-  flood_reg2_0a_time.lm = lm(res_reg1_2_3_time ~ wy_order_1_3_time) # Add constant to avoid problems with ephemeral streams
-  b0_reg2_0a_time[k] = summary(flood_reg2_0a_time.lm)$coefficients[1,1] 
-  b1_reg2_0a_time[k] = summary(flood_reg2_0a_time.lm)$coefficients[2,1] 
-  pval_b0_reg2_0a_time[k] = summary(flood_reg2_0a_time.lm)$coefficients[1,4] 
-  pval_b1_reg2_0a_time[k] = summary(flood_reg2_0a_time.lm)$coefficients[2,4] 
-  adj_rsquared_reg2_0a_time[k] = as.numeric(summary(flood_reg2_0a_time.lm)$adj.r.squared) 
-  res_reg2_0a_time[[k]] = residuals(flood_reg2_0a_time.lm)
-  
-  # View transformed residuals
-  #plot(wy_order_1_3,(res_reg1[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance",pch=3)
-  #title(c(site_names[station_group_time[k,1]],
-  #        as.character(site_id[station_group_time[k,1]]),
-  #        "DA",
-  #        as.numeric(as.character(site_info[station_group_time[k,1],6]))),cex.main=0.8)
-  
-  # Compute residual variance in last year of record
-  cond_var_at_n_2sls_0a_time[k] = (b0_reg2_0a_time[k] + b1_reg2_0a_time[k] * max(wy_order_1_3_time))^3 
-  Q_99_at_n_2sls_0a_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2sls_0a_time[k])) 
-  
-  # Fit conditional variance model B using two-stage least squares with Anscombe transformation
-  res_reg1_2_3_time <- (res_reg1_time[[k]]^2)^(1/3)
-  wy_order_2_3_time <- wy_order_time[[k]]^(2/3)
-  flood_reg2_0b_time.lm = lm(res_reg1_2_3_time ~ wy_order_2_3_time) # Add constant to avoid problems with ephemeral streams
-  b0_reg2_0b_time[k] = summary(flood_reg2_0b_time.lm)$coefficients[1,1]
-  b1_reg2_0b_time[k] = summary(flood_reg2_0b_time.lm)$coefficients[2,1]
-  pval_b0_reg2_0b_time[k] = summary(flood_reg2_0b_time.lm)$coefficients[1,4]
-  pval_b1_reg2_0b_time[k] = summary(flood_reg2_0b_time.lm)$coefficients[2,4]
-  adj_rsquared_reg2_0b_time[k] = as.numeric(summary(flood_reg2_0b_time.lm)$adj.r.squared)
-  res_reg2_0b_time[[k]] = residuals(flood_reg2_0b_time.lm)
-  
-  # Compute residual variance in last year of record
-  cond_var_at_n_2sls_0b_time[k] = (b0_reg2_0b_time[k] + b1_reg2_0b_time[k] * max(wy_order_2_3_time))^3
-  Q_99_at_n_2sls_0b_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2sls_0b_time[k]))
-  
-  # Fit conditional variance Model A with two-stage least squares without an Anscombe transformation
-  res_reg1_2_time <- (res_reg1_time[[k]]^2)
-  flood_reg2_1a_time.lm <- lm(res_reg1_2_time ~ wy_order_time[[k]])
-  b0_reg2_1a_time[k] = summary(flood_reg2_1a_time.lm)$coefficients[1,1]
-  b1_reg2_1a_time[k] = summary(flood_reg2_1a_time.lm)$coefficients[2,1]
-  pval_b0_reg2_1a_time[k] = summary(flood_reg2_1a_time.lm)$coefficients[1,4]
-  pval_b1_reg2_1a_time[k] = summary(flood_reg2_1a_time.lm)$coefficients[2,4]
-  adj_rsquared_reg2_1a_time[k] = as.numeric(summary(flood_reg2_1a_time.lm)$adj.r.squared)
-  res_reg2_1a_time[[k]] = residuals(flood_reg2_1a_time.lm)
-  
-  cond_var_at_n_2sls_1a_time[k] = b0_reg2_1a_time[k] + b1_reg2_1a_time[k] * max(wy_order_time[[k]])
-  Q_99_at_n_2sls_1a_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2sls_1a_time[k]))
-  
-  #plot(res_reg1[[k]]^2)
-  #lines(b0_reg2_1a[k]+b1_reg2_1a[k]*seq(1,length(res_reg1[[k]]),1))
-  #13,18,22,29,33,38
-  
-  # Fit quadratic conditional variance model with two-stage least squares without an Anscombe transformation
-  res_reg1_2_time <- (res_reg1_time[[k]]^2)
-  flood_reg2_1b_time.lm <- lm(res_reg1_2_time ~ wy_order_2_time[[k]])
-  b0_reg2_1b_time[k] = summary(flood_reg2_1b_time.lm)$coefficients[1,1]
-  b1_reg2_1b_time[k] = summary(flood_reg2_1b_time.lm)$coefficients[2,1]
-  pval_b0_reg2_1b_time[k] = summary(flood_reg2_1b_time.lm)$coefficients[1,4]
-  pval_b1_reg2_1b_time[k] = summary(flood_reg2_1b_time.lm)$coefficients[2,4]
-  adj_rsquared_reg2_1b_time[k] = as.numeric(summary(flood_reg2_1b_time.lm)$adj.r.squared)
-  res_reg2_1b_time[[k]] = residuals(flood_reg2_1b_time.lm)
-  
-  cond_var_at_n_2sls_1b_time[k] = b0_reg2_1b_time[k] + b1_reg2_1b_time[k] * max(wy_order_2_time[[k]])
-  Q_99_at_n_2sls_1b_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2sls_1b_time[k]))
-  
-  
-  # Fit Model A using 2-parameter derived equation
-  var_res_reg1_time <- length(wy_order_time[[k]])/(length(wy_order_time[[k]])-2)*var(as.numeric(res_reg1_time[[k]]))
-  mu_t_time <- (length(wy_order_time[[k]])+1)/2
-  cond_var_reg2_2a_time <- var_res_reg1_time/mu_t_time*wy_order_time[[k]]
-  cond_var_at_n_2a_time[k] = max(cond_var_reg2_2a_time)
-  Q_99_at_n_2a_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2a_time[k]))
-  
-  # Fit Model B using 2-parameter derived equation
-  var_res_reg1_time <- length(wy_order_time[[k]])/(length(wy_order_time[[k]])-2)*var(as.numeric(res_reg1_time[[k]]))
-  mu_t_2_time <- ((length(wy_order_time[[k]])+1)/2)^2
-  sigma_t_2_time <- (length(wy_order_time[[k]])-1)^2/12
-  cond_var_reg2_2b_time <- var_res_reg1_time/(mu_t_2_time+sigma_t_2_time)*wy_order_time[[k]]^2
-  cond_var_at_n_2b_time[k] = max(cond_var_reg2_2b_time)
-  Q_99_at_n_2b_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_2b_time[k]))
-  # NOT DONE USING ANSCOMBE TRANSFORMATION
-  
-  # Fit Model 4A - Multiplicative model
-  res_mult1_4a_time[[k]] = as.numeric((res_reg1_time[[k]] + b0_reg1_time[k] + b1_reg1_time[k] * wy_order_time[[k]])/(b0_reg1_time[k] + b1_reg1_time[k] * wy_order_time[[k]]))
-  cond_var_4a_time[[k]] = as.numeric((b0_reg1_time[k] + b1_reg1_time[k] * wy_order_time[[k]])^2*var(res_mult1_4a_time[[k]]))
-  cond_var_at_n_4a_time[k] = (b0_reg1_time[k] + b1_reg1_time[k] * max(wy_order_time[[k]]))^2*var(res_mult1_4a_time[[k]])
-  Q_99_at_n_4a_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_4a_time[k])) 
-  
+  # FIX REPLACE: Models 0-4
+ 
   # Fit Model 5A 
-  rho_t_res_reg2_time <- cor(wy_order_time[[k]],res_reg1_2_3_time)
-  sd_res_reg1_2_3_time <- sd(res_reg1_2_3_time)
-  cc0_5a_time[k] = mean(res_reg1_2_3_time) - (rho_t_res_reg2_time * sd_res_reg1_2_3_time  * mean(wy_order_time[[k]])) / sd(wy_order_time[[k]])
-  cc1_5a_time[k] = rho_t_res_reg2_time * sd_res_reg1_2_3_time / sd(wy_order_time[[k]])
-  res_reg2_5a_fit_time <- (cc0_5a_time[k] + cc1_5a_time[k] * wy_order_time[[k]]) 
-  res_reg2_5a_var_time <- res_dof_corr_time[k]*var(res_reg1_2_3_time-res_reg2_5a_fit_time)
+  rho_t_res_reg2_urb <- cor(bhc_ts_TIA_vec_station[[k]],res_reg1_2_3_urb)
+  sd_res_reg1_2_3_urb <- sd(res_reg1_2_3_urb)
+  cc0_5a_urb[k] = mean(res_reg1_2_3_urb) - (rho_t_res_reg2_urb * sd_res_reg1_2_3_urb  * mean(bhc_ts_TIA_vec_station[[k]])) / sd(bhc_ts_TIA_vec_station[[k]])
+  cc1_5a_urb[k] = rho_t_res_reg2_urb * sd_res_reg1_2_3_urb / sd(bhc_ts_TIA_vec_station[[k]])
+  res_reg2_5a_fit_urb <- (cc0_5a_urb[k] + cc1_5a_urb[k] * bhc_ts_TIA_vec_station[[k]])
+  res_reg2_5a_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_3_urb-res_reg2_5a_fit_urb)
   
-  cond_var_5a_time[[k]] <- (cc0_5a_time[k] + cc1_5a_time[k] * wy_order_time[[k]])^3 + 3*res_reg2_5a_var_time*(cc0_5a_time[k] + cc1_5a_time[k] * wy_order_time[[k]])
+  cond_var_5a_urb[[k]] <- (cc0_5a_urb[k] + cc1_5a_urb[k] * bhc_ts_TIA_vec_station[[k]])^3 + 3*res_reg2_5a_var_urb*(cc0_5a_urb[k] + cc1_5a_urb[k] * bhc_ts_TIA_vec_station[[k]])
   #cond_var_at_n_5a[k] = res_dof_corr[k]*(cc0_5a[k] + cc1_5a[k] * wy_order_max[k])^3 
-  cond_var_at_n_5a_time[k] = res_dof_corr_time[k]*(cc0_5a_time[k] + cc1_5a_time[k] * wy_order_max_time[k])^3 + 3*res_reg2_5a_var_time*(cc0_5a_time[k] + cc1_5a_time[k] * wy_order_max_time[k]) + mean((res_reg1_2_3_time-res_reg2_5a_fit_time)^3)
+  cond_var_at_n_5a_urb[k] = res_dof_corr_urb[k]*(cc0_5a_urb[k] + cc1_5a_urb[k] * max(bhc_ts_TIA_vec_station[[k]]))^3 + 3*res_reg2_5a_var_urb*(cc0_5a_urb[k] + cc1_5a_urb[k] * max(bhc_ts_TIA_vec_station[[k]])) + mean((res_reg1_2_3_urb-res_reg2_5a_fit_urb)^3)
   
   #plot(wy_order,res_reg1_2_3,col="blue")
   #lines(wy_order,res_reg2_5a)
   
-  Q_99_at_n_5a_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5a_time[k])) 
+  Q_99_at_n_5a_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5a_urb[k])) 
   
-  rsquared_5a_time[k] = 1 - sum((res_reg1_2_3_time - res_reg2_5a_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2)
-  adj_rsquared_5a_time[k] = 1 - adj_r2_corr_time[k]*sum((res_reg1_2_3_time - res_reg2_5a_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2)
-  rmse_5a_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_3_time^3 - cond_var_at_n_5a_time[[k]])^2))
-  rrmse_5a_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_3_time^3 - cond_var_at_n_5a_time[[k]])/cond_var_at_n_5a_time[[k]])^2))
-  mape_5a_time[k] = 100 * 1/length(wy_order_time[[k]])*sum(abs(res_reg1_2_3_time^3 - cond_var_at_n_5a_time[[k]])/cond_var_at_n_5a_time[[k]])
-  se_cc0_5a_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5a_fit_time)^2)/(length(wy_order_time[[k]]) - 2)*(1/length(wy_order_time[[k]])+mean(wy_order_time[[k]])^2/sum((wy_order_time[[k]]-mean(wy_order_time[[k]]))^2))) 
-  se_cc1_5a_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5a_fit_time)^2)/((length(wy_order_time[[k]]) - 2)*sum((wy_order_time[[k]]-mean(wy_order_time[[k]]))^2)))
-  t_cc0_5a_time <- cc0_5a_time[k]/se_cc0_5a_time 
-  t_cc1_5a_time[k] = cc1_5a_time[k]/se_cc1_5a_time
-  p_cc0_5a_time[k] = 2*(pt(-abs(t_cc0_5a_time), df=length(wy_order_time[[k]]) - 1))
-  p_cc1_5a_time[k] = 2*(pt(-abs(t_cc1_5a_time[k]), df=length(wy_order_time[[k]]) - 1)) 
+  rsquared_5a_urb[k] = 1 - sum((res_reg1_2_3_urb - res_reg2_5a_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2)
+  adj_rsquared_5a_urb[k] = 1 - adj_r2_corr_urb[k]*sum((res_reg1_2_3_urb - res_reg2_5a_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2)
+  rmse_5a_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_2_3_urb^3 - cond_var_at_n_5a_urb[[k]])^2))
+  rrmse_5a_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_2_3_urb^3 - cond_var_at_n_5a_urb[[k]])/cond_var_at_n_5a_urb[[k]])^2))
+  mape_5a_urb[k] = 100 * 1/length(bhc_ts_TIA_vec_station[[k]])*sum(abs(res_reg1_2_3_urb^3 - cond_var_at_n_5a_urb[[k]])/cond_var_at_n_5a_urb[[k]])
+  se_cc0_5a_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5a_fit_urb)^2)/(length(bhc_ts_TIA_vec_station[[k]]) - 2)*(1/length(bhc_ts_TIA_vec_station[[k]])+mean(bhc_ts_TIA_vec_station[[k]])^2/sum((bhc_ts_TIA_vec_station[[k]]-mean(bhc_ts_TIA_vec_station[[k]]))^2))) 
+  se_cc1_5a_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5a_fit_urb)^2)/((length(bhc_ts_TIA_vec_station[[k]]) - 2)*sum((bhc_ts_TIA_vec_station[[k]]-mean(bhc_ts_TIA_vec_station[[k]]))^2)))
+  t_cc0_5a_urb <- cc0_5a_urb[k]/se_cc0_5a_urb 
+  t_cc1_5a_urb[k] = cc1_5a_urb[k]/se_cc1_5a_urb
+  p_cc0_5a_urb[k] = 2*(pt(-abs(t_cc0_5a_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1))
+  p_cc1_5a_urb[k] = 2*(pt(-abs(t_cc1_5a_urb[k]), df=length(bhc_ts_TIA_vec_station[[k]]) - 1)) 
   #p_cc1_5a[k] = 1 - 2*pt(t_cc1_5a, df=length(wy_order[[k]]) - 1))
   
   # Compute return period difference
   # COmpute stationary 100-year flood
-  zp_RI_if_stnry_5a_time[k] = (log(Q_99_at_n_no_trend_time[k])-cond_med_at_n_time[k])/sqrt(cond_var_at_n_5a_time[k])
-  RI_if_stnry_5a_time[k] = 1/(1-pnorm(zp_RI_if_stnry_5a_time[k]))
+  zp_RI_if_stnry_5a_urb[k] = (log(Q_99_at_n_no_trend_urb[k])-cond_med_at_n_urb[k])/sqrt(cond_var_at_n_5a_urb[k])
+  RI_if_stnry_5a_urb[k] = 1/(1-pnorm(zp_RI_if_stnry_5a_urb[k]))
   
   # Type II errors using methods from Vogel et al. (2013) and Rosner et al. (2014)
-  delta_cc1_5a_true_time[k] = 1/(sqrt(1/cor(wy_order_time[[k]],res_reg1_2_3_time)^2-1)) 
-  tt_cc1_5a_time[k] = qt(1-p_cc1_5a_time[k],length(wy_order_time[[k]])-2)
-  t2_error_cc1_5a_time[k] = pt(tt_cc1_5a_time[k] - delta_cc1_5a_true_time[k]*sqrt(length(wy_order_time[[k]])),length(wy_order_time[[k]])-2)
+  delta_cc1_5a_true_urb[k] = 1/(sqrt(1/cor(bhc_ts_TIA_vec_station[[k]],res_reg1_2_3_urb)^2-1)) 
+  tt_cc1_5a_urb[k] = qt(1-p_cc1_5a_urb[k],length(bhc_ts_TIA_vec_station[[k]])-2)
+  t2_error_cc1_5a_urb[k] = pt(tt_cc1_5a_urb[k] - delta_cc1_5a_true_urb[k]*sqrt(length(bhc_ts_TIA_vec_station[[k]])),length(bhc_ts_TIA_vec_station[[k]])-2)
   
   # Test residual adequacy 
-  res_reg2_5a_time <- as.numeric(res_reg1_2_3_time - res_reg2_5a_fit_time)
-  ppcc_res_reg2_time <- ppcc.test(res_reg2_5a_time)
-  pval_ppcc_res_reg2_5a_time[k] = as.numeric(ppcc_res_reg2_time[2])
-  dw_res_reg2_time <- dwtest(res_reg2_5a_time ~ wy_order_time[[k]])
-  pval_dw_res_reg2_5a_time[k] = as.numeric(dw_res_reg2_time$p.value) 
+  res_reg2_5a_urb <- as.numeric(res_reg1_2_3_urb - res_reg2_5a_fit_urb)
+  ppcc_res_reg2_urb <- ppcc.test(res_reg2_5a_urb)
+  pval_ppcc_res_reg2_5a_urb[k] = as.numeric(ppcc_res_reg2_urb[2])
+  dw_res_reg2_urb <- dwtest(res_reg2_5a_urb ~ bhc_ts_TIA_vec_station[[k]])
+  pval_dw_res_reg2_5a_urb[k] = as.numeric(dw_res_reg2_urb$p.value) 
   
   # Test for heteroscedasticity of residuals of second regression
-  res_reg2_2_3_5a_time <- ((res_reg1_2_3_time - res_reg2_5a_fit_time)^2)^(1/3)
-  res_reg2_2_3_5a_time.lm <- lm(res_reg2_2_3_5a_time ~ wy_order_time[[k]])
-  p_dd1_5a_time[k] = summary(res_reg2_2_3_5a_time.lm)$coefficients[2,4]
+  res_reg2_2_3_5a_urb <- ((res_reg1_2_3_urb - res_reg2_5a_fit_urb)^2)^(1/3)
+  res_reg2_2_3_5a_urb.lm <- lm(res_reg2_2_3_5a_urb ~ bhc_ts_TIA_vec_station[[k]])
+  p_dd1_5a_urb[k] = summary(res_reg2_2_3_5a_urb.lm)$coefficients[2,4]
   
   # View transformed residuals assuming wy_order~res
   #plot(wy_order,(res_reg1[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance ^ (2/3)")
@@ -622,58 +574,59 @@ for (k in 1:nrow(station_group_time)){
   
   
   # Fit Model 5B 
-  rho_t_res_reg2_time <- cor(wy_order_2_time[[k]],res_reg1_2_3_time) 
-  sd_res_reg1_2_3_time <- sd(res_reg1_2_3_time)
-  cc0_5b_time[k] = mean(res_reg1_2_3_time) - (rho_t_res_reg2_time * sd_res_reg1_2_3_time  * mean(wy_order_2[[k]]) / sd(wy_order_2_time[[k]]))
-  cc1_5b_time[k] = rho_t_res_reg2_time * sd_res_reg1_2_3_time / sd(wy_order_2_time[[k]])
-  res_reg2_5b_fit_time <- cc0_5b_time[k] + cc1_5b_time[k] * wy_order_2_time[[k]]
-  res_reg2_5b_var_time <- res_dof_corr_time[k]*var(res_reg1_2_3_time-res_reg2_5b_fit_time)
+  rho_t_res_reg2_urb <- cor(bhc_ts_TIA_vec_station_2[[k]],res_reg1_2_3_urb) 
+  sd_res_reg1_2_3_urb <- sd(res_reg1_2_3_urb)
+  cc0_5b_urb[k] = mean(res_reg1_2_3_urb) - (rho_t_res_reg2_urb * sd_res_reg1_2_3_urb * mean(bhc_ts_TIA_vec_station_2[[k]]) / sd(bhc_ts_TIA_vec_station_2[[k]]))
+  cc1_5b_urb[k] = rho_t_res_reg2_urb * sd_res_reg1_2_3_urb / sd(bhc_ts_TIA_vec_station_2[[k]])
+  res_reg2_5b_fit_urb <- cc0_5b_urb[k] + cc1_5b_urb[k] * bhc_ts_TIA_vec_station_2[[k]]
+  res_reg2_5b_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_3_urb - res_reg2_5b_fit_urb)
   
   # Test alternative conditional max estimation method
-  res_reg2_5b_trans_mean_time <- res_dof_corr_time[k]*(cc0_5b_time[k] + cc1_5b_time[k] * mean(wy_order_2_time[[k]]))^3 + 3*res_reg2_5b_var_time*(cc0_5b_time[k] + cc1_5b_time[k] * mean(wy_order_2_time[[k]]))
+  res_reg2_5b_trans_mean_urb <- res_dof_corr_urb[k]*(cc0_5b_urb[k] + cc1_5b_urb[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))^3 + 3*res_reg2_5b_var_time*(cc0_5b_time[k] + cc1_5b_time[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))
   
-  qq_time <- var(res_reg1_2_3_time - res_reg2_5b_fit_time) #0.0315
-  rr_time <- 0.5*(res_reg2_5b_trans_mean_time - mean((res_reg1_2_3_time-res_reg2_5b_fit_time)^3)) #0.5*(0.08086177 - 0.00227) = 0.0382209
-  ss_time <- (rr_time + sqrt(qq_time^3+rr_time^2))^(1/3)
-  tt_time <- sign(rr_time - sqrt(qq_time^3+rr_time^2))*abs((rr_time - sqrt(qq_time^3+rr_time^2)))^(1/3)
-  ss_tt_time <- (ss_time+tt_time) 
+  #qq_urb <- var(res_reg1_2_3_urb - res_reg2_5b_fit_urb)
+  #rr_urb <- 0.5*(res_reg2_5b_trans_mean_urb - mean((res_reg1_2_3_urb-res_reg2_5b_fit_urb)^3)) #0.5*(0.08086177 - 0.00227) = 0.0382209
+  #ss_urb <- (rr_urb + sqrt(qq_urb^3+rr_urb^2))^(1/3)
+  #tt_urb <- sign(rr_urb - sqrt(qq_urb^3+rr_urb^2))*abs((rr_urb - sqrt(qq_urb^3+rr_urb^2)))^(1/3)
+  #ss_tt_urb <- (ss_urb+tt_urb) 
   
-  res_reg2_5b_trans_mean_time <- sqrt(((ss_time + tt_time) - cc0_5b_time[k])/cc1_5b_time[k]) 
+  #res_reg2_5b_trans_mean_urb <- sqrt(((ss_urb  + tt_urb ) - cc0_5b_urb[k])/cc1_5b_urb[k]) 
   
-  res_reg2_5b_trans_cond_time <- cov(wy_order_2_time[[k]],res_reg1_2_time)/var(wy_order_2_time[[k]]) * (max(wy_order_2_time[[k]]) - res_reg2_5b_trans_mean_time^2)
+  #res_reg2_5b_trans_cond_urb <- cov(wy_order_2_urb[[k]],res_reg1_2_urb)/var(wy_order_2_urb[[k]]) * (max(wy_order_2_urb[[k]]) - res_reg2_5b_trans_mean_urb^2)
   #cond_var_at_n_5b[k] = res_dof_corr[k]*(res_reg2_5b_trans_mean + res_reg2_5b_trans_cond)
   
-  cond_var_5b_time[[k]] <- (cc0_5b_time[k] + cc1_5b_time[k] * wy_order_2_time[[k]])^3 + 3*res_reg2_5b_var_time*(cc0_5b_time[k] + cc1_5b_time[k] * wy_order_2_time[[k]]) + mean((res_reg1_2_3_time - res_reg2_5b_fit_time)^3) 
-  cond_var_at_n_5b_time[k] = res_dof_corr_time[k]*((cc0_5b_time[k] + cc1_5b_time[k] * max(wy_order_2_time[[k]]))^3 + 3*res_reg2_5b_var_time*(cc0_5b_time[k] + cc1_5b_time[k] * max(wy_order_2_time[[k]])) + res_dof_corr_time[k]*mean((res_reg1_2_3_time - res_reg2_5b_fit_time)^3))
+  cond_var_5b_urb[[k]] <- (cc0_5b_urb[k] + cc1_5b_urb[k] * bhc_ts_TIA_vec_station_2[[k]])^3 + 3*res_reg2_5b_var_urb*(cc0_5b_urb[k] + cc1_5b_urb[k] * bhc_ts_TIA_vec_station_2[[k]]) + mean((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^3) 
+  cond_var_at_n_5b_urb[k] = res_dof_corr_urb[k]*((cc0_5b_urb[k] + cc1_5b_urb[k] * max(bhc_ts_TIA_vec_station_2[[k]]))^3 + 3*res_reg2_5b_var_urb*(cc0_5b_urb[k] + cc1_5b_urb[k] * max(bhc_ts_TIA_vec_station_2[[k]])) + res_dof_corr_urb[k]*mean((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^3))
   
   #plot(wy_order,res_reg1_2_3,col="blue")
   #lines(wy_order,res_reg2_5b)
-  Q_99_at_n_5b_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5b_time[k])) 
-  rsquared_5b_time[k] = 1-sum((res_reg1_2_3_time - res_reg2_5b_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2) 
-  adj_rsquared_5b_time[k] = 1- adj_r2_corr_time[k]*sum((res_reg1_2_3_time - res_reg2_5b_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2) 
-  rmse_5b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_3_time^3 - cond_var_5b_time[[k]])^2))
-  rrmse_5b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_3_time^3 - cond_var_5b_time[[k]])/cond_var_5b_time[[k]])^2))
+  Q_99_at_n_5b_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5b_urb[k])) 
+  rsquared_5b_urb[k] = 1-sum((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2) 
+  adj_rsquared_5b_urb[k] = 1- adj_r2_corr_urb[k]*sum((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2) 
+  rmse_5b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum((res_reg1_2_3_urb^3 - cond_var_5b_urb[[k]])^2))
+  rrmse_5b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum(((res_reg1_2_3_urb^3 - cond_var_5b_urb[[k]])/cond_var_5b_urb[[k]])^2))
   
-  se_cc0_5b_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5b_fit_time)^2)/(length(wy_order_2_time[[k]]) - 2)*(1/length(wy_order_2_time[[k]])+mean(wy_order_2_time[[k]])^2/sum((wy_order_2_time[[k]]-mean(wy_order_2_time[[k]]))^2)))
-  se_cc1_5b_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5b_fit_time)^2)/((length(wy_order_2_time[[k]]) - 2)*sum((wy_order_2_time[[k]]-mean(wy_order_2_time[[k]]))^2)))
-  t_cc0_5b_time <- cc0_5b_time[k]/se_cc0_5b_time 
-  t_cc1_5b_time <- cc1_5b_time[k]/se_cc1_5b_time
-  p_cc0_5b_time[k] = 2*(pt(-abs(t_cc0_5b_time), df=length(wy_order_time[[k]]^2) - 1))
-  p_cc1_5b_time[k] = 2*(pt(-abs(t_cc1_5b_time), df=length(wy_order_time[[k]]^2) - 1)) 
+  se_cc0_5b_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^2)/(length(bhc_ts_TIA_vec_station_2[[k]]) - 2)*(1/length(bhc_ts_TIA_vec_station_2[[k]])+mean(bhc_ts_TIA_vec_station_2[[k]])^2/sum((bhc_ts_TIA_vec_station_2[[k]]-mean(bhc_ts_TIA_vec_station_2[[k]]))^2)))
+  se_cc1_5b_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^2)/((length(bhc_ts_TIA_vec_station_2[[k]]) - 2)*sum((bhc_ts_TIA_vec_station_2[[k]]-mean(bhc_ts_TIA_vec_station_2[[k]]))^2)))
+  t_cc0_5b_urb <- cc0_5b_urb[k]/se_cc0_5b_urb 
+  t_cc1_5b_urb <- cc1_5b_urb[k]/se_cc1_5b_urb
+  p_cc0_5b_urb[k] = 2*(pt(-abs(t_cc0_5b_urb), df=length(bhc_ts_TIA_vec_station_2[[k]]) - 1))
+  p_cc1_5b_urb[k] = 2*(pt(-abs(t_cc1_5b_urb), df=length(bhc_ts_TIA_vec_station_2[[k]]) - 1)) 
   
   # Test residual adequacy 
-  res_reg2_5b_time <- as.numeric(res_reg1_2_3_time - res_reg2_5b_fit_time)
-  ppcc_res_reg2_time <- ppcc.test(res_reg2_5b_time)
-  pval_ppcc_res_reg2_5b_time[k] = as.numeric(ppcc_res_reg2_time[2])
-  dw_res_reg2_time <- dwtest(res_reg2_5b_time ~ wy_order_2_time[[k]])
-  pval_dw_res_reg2_5b_time[k] = as.numeric(dw_res_reg2_time$p.value) 
+  res_reg2_5b_urb <- as.numeric(res_reg1_2_3_urb - res_reg2_5b_fit_urb)
+  ppcc_res_reg2_urb <- ppcc.test(res_reg2_5b_urb)
+  pval_ppcc_res_reg2_5b_urb[k] = as.numeric(ppcc_res_reg2_urb[2])
+  dw_res_reg2_urb <- dwtest(res_reg2_5b_urb ~ bhc_ts_TIA_vec_station_2[[k]])
+  pval_dw_res_reg2_5b_urb[k] = as.numeric(dw_res_reg2_urb$p.value) 
   
   # Test for heteroscedasticity of residuals of second regression
-  res_reg2_2_3_5b_time <- ((res_reg1_2_3_time - res_reg2_5b_fit_time)^2)^(1/3)
-  res_reg2_2_3_5b_time.lm <- lm(res_reg2_2_3_5b_time ~ wy_order_2_time[[k]])
-  p_dd1_5b_time[k] = summary(res_reg2_2_3_5b_time.lm)$coefficients[2,4]
+  res_reg2_2_3_5b_urb <- ((res_reg1_2_3_urb - res_reg2_5b_fit_urb)^2)^(1/3)
+  res_reg2_2_3_5b_urb.lm <- lm(res_reg2_2_3_5b_urb ~ bhc_ts_TIA_vec_station_2[[k]])
+  p_dd1_5b_urb[k] = summary(res_reg2_2_3_5b_urb.lm)$coefficients[2,4]
   
   # Fit Model 5C (exponential)
+  '
   exp_wy_order_nrmlz_time <- exp(wy_order_time[[k]]/max(wy_order_time[[k]]))
   rho_t_res_reg2_time <- cor(exp_wy_order_nrmlz_time,res_reg1_2_3_time)
   sd_res_reg1_2_3_time <- sd(res_reg1_2_3_time)
@@ -709,44 +662,46 @@ for (k in 1:nrow(station_group_time)){
   res_reg2_2_3_5c_time <- ((res_reg1_2_3_time - res_reg2_5c_fit_time)^2)^(1/3)
   res_reg2_2_3_5c_time.lm <- lm(res_reg2_2_3_5c_time ~ wy_order_time[[k]])
   p_dd1_5c_time[k] = summary(res_reg2_2_3_5c_time.lm)$coefficients[2,4]
+  '
   
   # Fit Model 5d (logarithmic)
-  rho_t_res_reg2_time <- cor(log(wy_order_time[[k]]),res_reg1_2_3_time)
-  sd_res_reg1_2_3_time <- sd(res_reg1_2_3_time)
-  cc0_5d_time[k] = mean(res_reg1_2_3_time) - (rho_t_res_reg2_time * sd_res_reg1_2_3_time  * mean(log(wy_order_time[[k]])) / sd(log(wy_order_time[[k]])))
-  cc1_5d_time[k] = rho_t_res_reg2_time * sd_res_reg1_2_3_time / sd(log(wy_order_time[[k]]))
-  res_reg2_5d_fit_time <- cc0_5d_time[k] + cc1_5d_time[k] * log(wy_order_time[[k]])
-  res_reg2_5d_var_time <- length(wy_order_time[[k]])/(length(wy_order_time[[k]])-2)*var(res_reg1_2_3_time-res_reg2_5d_fit_time)
+  rho_t_res_reg2_urb <- cor(log(bhc_ts_TIA_vec_station[[k]]),res_reg1_2_3_urb)
+  sd_res_reg1_2_3_urb <- sd(res_reg1_2_3_urb)
+  cc0_5d_urb[k] = mean(res_reg1_2_3_urb) - (rho_t_res_reg2_urb * sd_res_reg1_2_3_urb  * mean(log(bhc_ts_TIA_vec_station[[k]])) / sd(log(bhc_ts_TIA_vec_station[[k]])))
+  cc1_5d_urb[k] = rho_t_res_reg2_urb * sd_res_reg1_2_3_urb / sd(log(bhc_ts_TIA_vec_station[[k]]))
+  res_reg2_5d_fit_urb <- cc0_5d_urb[k] + cc1_5d_urb[k] * log(bhc_ts_TIA_vec_station[[k]])
+  res_reg2_5d_var_urb <- length(bhc_ts_TIA_vec_station[[k]])/(length(bhc_ts_TIA_vec_station[[k]])-2)*var(res_reg1_2_3_urb-res_reg2_5d_fit_urb)
   
-  cond_var_5d_time[[k]] = (cc0_5d_time[k] + cc1_5d_time[k] * log(wy_order_time[[k]]))^3 + res_reg2_5d_var_time*(3*cc0_5d_time[k] + 3*cc1_5d_time[k] * log(wy_order_time[[k]])) + mean((res_reg1_2_3_time-res_reg2_5d_fit_time)^3)
-  cond_var_at_n_5d_time[k] = res_dof_corr_time[k]*((cc0_5d_time[k] + cc1_5d_time[k] * max(log(wy_order_time[[k]])))^3 + res_reg2_5d_var_time*(3*cc0_5d_time[k] + 3*cc1_5d_time[k] * max(log(wy_order_time[[k]]))) + mean((res_reg1_2_3_time-res_reg2_5d_fit_time)^3))
+  cond_var_5d_urb[[k]] = (cc0_5d_urb[k] + cc1_5d_urb[k] * log(bhc_ts_TIA_vec_station[[k]]))^3 + res_reg2_5d_var_urb*(3*cc0_5d_urb[k] + 3*cc1_5d_urb[k] * log(bhc_ts_TIA_vec_station[[k]])) + mean((res_reg1_2_3_urb-res_reg2_5d_fit_urb)^3)
+  cond_var_at_n_5d_urb[k] = res_dof_corr_urb[k]*((cc0_5d_urb[k] + cc1_5d_urb[k] * max(log(bhc_ts_TIA_vec_station[[k]])))^3 + res_reg2_5d_var_urb*(3*cc0_5d_urb[k] + 3*cc1_5d_urb[k] * max(log(bhc_ts_TIA_vec_station[[k]]))) + mean((res_reg1_2_3_urb-res_reg2_5d_fit_urb)^3))
   #plot(wy_order,res_reg1_2_3,col="blue")
   #lines(wy_order,res_reg2_5d)
-  Q_99_at_n_5d_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5d_time[k]))  
-  rsquared_5d_time[k] = 1-sum((res_reg1_2_3_time - res_reg2_5d_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2)
-  adj_rsquared_5d_time[k] = 1 - adj_r2_corr_time[k] * sum((res_reg1_2_3_time - res_reg2_5d_fit_time)^2)/sum((res_reg1_2_3_time - mean(res_reg1_2_3_time))^2)
-  rmse_5d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_3_time - res_reg2_5d_fit_time)^2))
-  rrmse_5d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_3_time - res_reg2_5d_fit_time)/res_reg1_2_3_time)^2))
+  Q_99_at_n_5d_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_5d_urb[k]))  
+  rsquared_5d_urb[k] = 1-sum((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2)
+  adj_rsquared_5d_urb[k] = 1 - adj_r2_corr_urb[k] * sum((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2)/sum((res_reg1_2_3_urb - mean(res_reg1_2_3_urb))^2)
+  rmse_5d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2))
+  rrmse_5d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_2_3_urb - res_reg2_5d_fit_urb)/res_reg1_2_3_urb)^2))
   
-  se_cc0_5d_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5d_fit_time)^2)/(length(wy_order_time[[k]]) - 2)*(1/length(wy_order_time[[k]])+mean(log(wy_order_time[[k]]))^2/sum((log(wy_order_time[[k]])-mean(log(wy_order_time[[k]])))^2))) 
-  se_cc1_5d_time <- sqrt(sum((res_reg1_2_3_time - res_reg2_5d_fit_time)^2)/((length(wy_order_time[[k]]) - 2)*sum((log(wy_order_time[[k]])-mean(log(wy_order_time[[k]])))^2)))
-  t_cc0_5d_time <- cc0_5d_time[k]/se_cc0_5d_time
-  t_cc1_5d_time <- cc1_5d_time[k]/se_cc1_5d_time
-  p_cc0_5d_time[k] = 2*(pt(-abs(t_cc0_5d_time), df=length(wy_order_time[[k]]) - 1))
-  p_cc1_5d_time[k] = 2*(pt(-abs(t_cc1_5d_time), df=length(wy_order_time[[k]]) - 1)) 
+  se_cc0_5d_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2)/(length(bhc_ts_TIA_vec_station[[k]]) - 2)*(1/length(bhc_ts_TIA_vec_station[[k]])+mean(log(bhc_ts_TIA_vec_station[[k]]))^2/sum((log(bhc_ts_TIA_vec_station[[k]])-mean(log(bhc_ts_TIA_vec_station[[k]])))^2))) 
+  se_cc1_5d_urb <- sqrt(sum((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2)/((length(bhc_ts_TIA_vec_station[[k]]) - 2)*sum((log(bhc_ts_TIA_vec_station[[k]])-mean(log(bhc_ts_TIA_vec_station[[k]])))^2)))
+  t_cc0_5d_urb <- cc0_5d_urb[k]/se_cc0_5d_urb
+  t_cc1_5d_urb <- cc1_5d_urb[k]/se_cc1_5d_urb
+  p_cc0_5d_urb[k] = 2*(pt(-abs(t_cc0_5d_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1))
+  p_cc1_5d_urb[k] = 2*(pt(-abs(t_cc1_5d_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1)) 
   
   # Test residual adequacy 
-  res_reg2_5d_time <- as.numeric(res_reg1_2_3_time - res_reg2_5d_fit_time)
-  ppcc_res_reg2_time <- ppcc.test(res_reg2_5d_time)
-  pval_ppcc_res_reg2_5d_time[k] = as.numeric(ppcc_res_reg2_time[2])
-  dw_res_reg2_time<- dwtest(res_reg2_5d_time ~ wy_order_time[[k]])
-  pval_dw_res_reg2_5d_time[k] = as.numeric(dw_res_reg2_time$p.value) 
+  res_reg2_5d_urb <- as.numeric(res_reg1_2_3_urb - res_reg2_5d_fit_urb)
+  ppcc_res_reg2_urb <- ppcc.test(res_reg2_5d_urb)
+  pval_ppcc_res_reg2_5d_urb[k] = as.numeric(ppcc_res_reg2_urb[2])
+  dw_res_reg2_urb<- dwtest(res_reg2_5d_urb ~ bhc_ts_TIA_vec_station[[k]])
+  pval_dw_res_reg2_5d_urb[k] = as.numeric(dw_res_reg2_urb$p.value) 
   
   # Test for heteroscedasticity of residuals of second regression
-  res_reg2_2_3_5d_time <- ((res_reg1_2_3_time - res_reg2_5d_fit_time)^2)^(1/3)
-  res_reg2_2_3_5d_time.lm <- lm(res_reg2_2_3_5d_time ~ wy_order_time[[k]])
-  p_dd1_5d_time[k] = summary(res_reg2_2_3_5d_time.lm)$coefficients[2,4]
+  res_reg2_2_3_5d_urb <- ((res_reg1_2_3_urb - res_reg2_5d_fit_urb)^2)^(1/3)
+  res_reg2_2_3_5d_urb.lm <- lm(res_reg2_2_3_5d_urb ~ bhc_ts_TIA_vec_station[[k]])
+  p_dd1_5d_urb[k] = summary(res_reg2_2_3_5d_urb.lm)$coefficients[2,4]
   
+  '
   # Model 5E (Method of moments, log-transformed squared residuals)
   log_res_reg1_2_time <- log(res_reg1_time[[k]]^2)
   rho_t_res_reg2_time <- cor(wy_order_time[[k]],log_res_reg1_2_time)
@@ -821,370 +776,371 @@ for (k in 1:nrow(station_group_time)){
   res_reg1_1_3_5f_time <- ((res_reg1_1_3_time - res_reg2_5f_fit_time)^2)^(1/3)
   res_reg1_1_3_5f_time.lm <- lm(res_reg1_1_3_5f_time ~ wy_order_time[[k]])
   p_dd1_5f_time[k] = summary(res_reg1_1_3_5f_time.lm)$coefficients[2,4]
-  
+  '
   
   # MODEL 6: ITERATIVE RE(WEIGHTED) LEAST SQUARES --------------------------------------------------
   
   # Fit Model 6A 
   
   # Establish output arrays for each record (length-dependent)
-  wt_6a_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_6a_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_2_3_6a_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cond_var_6a_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_6a_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_6a_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_2_3_6a_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  cond_var_6a_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_6a_time[,i] = rep(1,length(wy_order_time[[k]])) #Make a list
+      wt_6a_urb[,i] = rep(1,length(bhc_ts_TIA_vec_station[[k]])) #Make a list
     } else {
-      wt_6a_time[,i] = 1/(cond_var_6a_time[,i-1]) #Make a list
+      wt_6a_urb[,i] = 1/(cond_var_6a_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_6a_time[,i]) # Make a list
-    b0_reg1_iwls_6a_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[1])
-    b1_reg1_iwls_6a_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[2])
-    res_reg1_iwls_6a_time[,i] = as.numeric(residuals(flood_reg1_iwls_time.lm)) # Make a list
-    res_reg1_iwls_2_3_6a_time[,i] = (as.numeric(residuals(flood_reg1_iwls_time.lm)^2))^(1/3)# Make a list
-    res_reg1_iwls_2_3_6a_time.lm <- lm(res_reg1_iwls_2_3_6a_time[,i] ~ wy_order_time[[k]]) # Make a list
-    cc0_6a_time[k,i] = as.numeric((res_reg1_iwls_2_3_6a_time.lm$coefficients[1]))
-    cc1_6a_time[k,i] = as.numeric((res_reg1_iwls_2_3_6a_time.lm$coefficients[2]))
-    cond_var_6a_time[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6a_time.lm)) # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cond_var_6a_time[l,i] < 0.001){
-        cond_var_6a_time[l,i] <- 0.001
+    flood_reg1_iwls_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station_2[[k]], weights=wt_6a_urb[,i]) # Make a list
+    b0_reg1_iwls_6a_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[1])
+    b1_reg1_iwls_6a_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[2])
+    res_reg1_iwls_6a_urb[,i] = as.numeric(residuals(flood_reg1_iwls_urb.lm)) # Make a list
+    res_reg1_iwls_2_3_6a_urb[,i] = (as.numeric(residuals(flood_reg1_iwls_urb.lm)^2))^(1/3)# Make a list
+    res_reg1_iwls_2_3_6a_urb.lm <- lm(res_reg1_iwls_2_3_6a_urb[,i] ~ bhc_ts_TIA_vec_station[[k]]) # Make a list
+    cc0_6a_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6a_urb.lm$coefficients[1]))
+    cc1_6a_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6a_urb.lm$coefficients[2]))
+    cond_var_6a_urb[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6a_urb.lm)) # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cond_var_6a_urb[l,i] < 0.001){
+        cond_var_6a_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_6a_list_time[[k]] = wt_6a_time[,10]  
-  res_reg1_iwls_6a_list_time[[k]] = res_reg1_iwls_6a_time[,10]  
-  res_reg1_iwls_2_3_6a_list_time[[k]] = res_reg1_iwls_2_3_6a_time[,10]  
-  cond_var_6a_list_time[[k]] = cond_var_6a_time[,10]  
-  res_reg2_6a_var_time <- res_dof_corr_time[k]*var(res_reg1_iwls_2_3_6a_time[,10]-cond_var_6a_time[,10]) 
+  wt_6a_list_urb[[k]] = wt_6a_urb[,10]  
+  res_reg1_iwls_6a_list_urb[[k]] = res_reg1_iwls_6a_urb[,10]  
+  res_reg1_iwls_2_3_6a_list_urb[[k]] = res_reg1_iwls_2_3_6a_urb[,10]  
+  cond_var_6a_list_urb[[k]] = cond_var_6a_urb[,10]  
+  res_reg2_6a_var_urb <- res_dof_corr_urb[k]*var(res_reg1_iwls_2_3_6a_urb[,10]-cond_var_6a_urb[,10]) 
   
-  cond_var_at_n_6a_time[k] = res_dof_corr_time[k]*((cc0_6a_time[k,10] + cc1_6a_time[k,10] * max(wy_order_time[[k]]))^3 + 3*res_reg2_6a_var_time*(cc0_6a_time[k,10] + cc1_6a_time[k,10] * max(wy_order_time[[k]])) + mean((res_reg1_2_3_time-cond_var_6a_time[,10])^3))
+  cond_var_at_n_6a_urb[k] = res_dof_corr_urb[k]*((cc0_6a_urb[k,10] + cc1_6a_urb[k,10] * max(bhc_ts_TIA_vec_station[[k]]))^3 + 3*res_reg2_6a_var_urb*(cc0_6a_urb[k,10] + cc1_6a_urb[k,10] * max(bhc_ts_TIA_vec_station[[k]])) + mean((res_reg1_2_3_urb-cond_var_6a_urb[,10])^3))
   #plot(wy_order,res_reg1_2_3,col="blue")
   #lines(wy_order,res_reg2_5a)
-  Q_99_at_n_6a_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6a_time[k]))
-  rsquared_6a_time[k] = 1-sum((res_reg1_iwls_2_3_6a_time[,max(i)] - cond_var_6a_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6a_time[,max(i)] - mean(res_reg1_iwls_2_3_6a_time[,max(i)]))^2)
-  adj_rsquared_6a_time[k] = 1-adj_r2_corr_time[k]*sum((res_reg1_iwls_2_3_6a_time[,max(i)] - cond_var_6a_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6a_time[,max(i)] - mean(res_reg1_iwls_2_3_6a_time[,max(i)]))^2)
-  rmse_6a_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_iwls_2_3_6a_time[,max(i)] - cond_var_6a_time[,max(i)])^2))
-  rrmse_6a_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_iwls_2_3_6a_time[,max(i)] - cond_var_6a_time[,max(i)])/res_reg1_iwls_2_3_6a_time[,max(i)])^2))
+  Q_99_at_n_6a_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6a_urb[k]))
+  rsquared_6a_urb[k] = 1-sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - cond_var_6a_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - mean(res_reg1_iwls_2_3_6a_urb[,max(i)]))^2)
+  adj_rsquared_6a_urb[k] = 1-adj_r2_corr_urb[k]*sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - cond_var_6a_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - mean(res_reg1_iwls_2_3_6a_urb[,max(i)]))^2)
+  rmse_6a_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - cond_var_6a_urb[,max(i)])^2))
+  rrmse_6a_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_iwls_2_3_6a_urb[,max(i)] - cond_var_6a_urb[,max(i)])/res_reg1_iwls_2_3_6a_urb[,max(i)])^2))
   
-  
-  se_cc1_6a_time <- sqrt(sum((res_reg1_iwls_2_3_6a_time[,max(i)] - cond_var_6a_time[,max(i)])^2)/((length(wy_order_time[[k]]) - 2)*sum((wy_order_time[[k]]-mean(wy_order_time[[k]]))^2)))
-  t_cc1_6a_time <- cc1_6a_time[k]/se_cc1_6a_time
-  p_cc1_6a_time[k] = 2*(pt(-abs(t_cc1_6a_time), df=length(wy_order_time[[k]]) - 1)) 
+  se_cc1_6a_urb <- sqrt(sum((res_reg1_iwls_2_3_6a_urb[,max(i)] - cond_var_6a_urb[,max(i)])^2)/((length(bhc_ts_TIA_vec_station[[k]]) - 2)*sum((bhc_ts_TIA_vec_station[[k]] - mean(bhc_ts_TIA_vec_station[[k]]))^2)))
+  t_cc1_6a_urb <- cc1_6a_urb[k]/se_cc1_6a_urb
+  p_cc1_6a_urb[k] = 2*(pt(-abs(t_cc1_6a_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1)) 
   
   # Fit model 6B (Quadratic with IWLS)
   
   # Establish output arrays for each record (length-dependent)
-  wt_6b_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_6b_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_2_3_6b_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cond_var_6b_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_6b_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station_2[[k]]),10))
+  res_reg1_iwls_6b_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station_2[[k]]),10))
+  res_reg1_iwls_2_3_6b_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station_2[[k]]),10))
+  cond_var_6b_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station_2[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_6b_time[,i] = rep(1,length(wy_order_time[[k]])) #Make a list
+      wt_6b_urb[,i] = rep(1,length(bhc_ts_TIA_vec_station_2[[k]])) #Make a list
     } else {
-      wt_6b_time[,i] = 1/(cond_var_6b_time[,i-1]) #Make a list
+      wt_6b_urb[,i] = 1/(cond_var_6b_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_6b_time[,i]) # Make a list
-    b0_reg1_iwls_6b_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[1])
-    b1_reg1_iwls_6b_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[2])
-    res_reg1_iwls_6b_time[,i] = as.numeric(residuals(flood_reg1_iwls_time.lm)) # Make a list
-    res_reg1_iwls_2_3_6b_time[,i] = (as.numeric(residuals(flood_reg1_iwls_time.lm)^2))^(1/3)# Make a list
-    res_reg1_iwls_2_3_6b_time.lm <- lm(res_reg1_iwls_2_3_6b_time[,i] ~ wy_order_2_time[[k]]) # Make a list
-    cc0_6b_time[k,i] = as.numeric((res_reg1_iwls_2_3_6b_time.lm$coefficients[1]))
-    cc1_6b_time[k,i] = as.numeric((res_reg1_iwls_2_3_6b_time.lm$coefficients[2]))
-    cond_var_6b_time[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6b_time.lm)) # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cond_var_6b_time[l,i] < 0.001){
-        cond_var_6b_time[l,i] <- 0.001
+    flood_reg1_iwls_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station_2[[k]], weights=wt_6b_urb[,i]) # Make a list
+    b0_reg1_iwls_6b_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[1])
+    b1_reg1_iwls_6b_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[2])
+    res_reg1_iwls_6b_urb[,i] = as.numeric(residuals(flood_reg1_iwls_urb.lm)) # Make a list
+    res_reg1_iwls_2_3_6b_urb[,i] = (as.numeric(residuals(flood_reg1_iwls_urb.lm)^2))^(1/3)# Make a list
+    res_reg1_iwls_2_3_6b_urb.lm <- lm(res_reg1_iwls_2_3_6b_urb[,i] ~ bhc_ts_TIA_vec_station_2[[k]]) # Make a list
+    cc0_6b_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6b_urb.lm$coefficients[1]))
+    cc1_6b_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6b_urb.lm$coefficients[2]))
+    cond_var_6b_urb[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6b_urb.lm)) # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cond_var_6b_urb[l,i] < 0.001){
+        cond_var_6b_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_6b_list_time[[k]] = wt_6b_time[,10]
-  res_reg1_iwls_6b_list_time[[k]] = res_reg1_iwls_6b_time[,10]
-  res_reg1_iwls_2_3_6b_list_time[[k]] = res_reg1_iwls_2_3_6b_time[,10]
-  cond_var_6b_list_time[[k]] = cond_var_6b_time[,10]
-  res_reg2_6b_var_time <- res_dof_corr_time[k]*var(res_reg1_iwls_2_3_6b_time[,10]-cond_var_6b_time[,10])
+  wt_6b_list_urb[[k]] = wt_6b_urb[,10]
+  res_reg1_iwls_6b_list_urb[[k]] = res_reg1_iwls_6b_urb[,10]
+  res_reg1_iwls_2_3_6b_list_urb[[k]] = res_reg1_iwls_2_3_6b_urb[,10]
+  cond_var_6b_list_urb[[k]] = cond_var_6b_urb[,10]
+  res_reg2_6b_var_urb <- res_dof_corr_urb[k]*var(res_reg1_iwls_2_3_6b_urb[,10]-cond_var_6b_urb[,10])
   
-  cond_var_at_n_6b_time[k] = res_dof_corr_time[k]*((cc0_6b_time[k,10] + cc1_6b_time[k,10] * max(wy_order_2_time[[k]]))^3 + 3*res_reg2_6b_var_time*(cc0_6b_time[k,10] + cc1_6b_time[k,10] * max(wy_order_2_time[[k]])) + mean((res_reg1_iwls_2_3_6b_time[,10]-cond_var_6b_time[,10])^3))
+  cond_var_at_n_6b_urb[k] = res_dof_corr_urb[k]*((cc0_6b_urb[k,10] + cc1_6b_urb[k,10] * max(bhc_ts_TIA_vec_station_2[[k]]))^3 + 3*res_reg2_6b_var_urb*(cc0_6b_urb[k,10] + cc1_6b_urb[k,10] * max(bhc_ts_TIA_vec_station_2[[k]])) + mean((res_reg1_iwls_2_3_6b_urb[,10]-cond_var_6b_urb[,10])^3))
   
   #plot(wy_order,res_reg1_2_3,col="blue")
   #lines(wy_order,res_reg2_5a)
-  Q_99_at_n_6b_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6b_time[k]))
-  rsquared_6b_time[k] = 1-sum((res_reg1_iwls_2_3_6b_time[,max(i)] - cond_var_6b_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6b_time[,max(i)] - mean(res_reg1_iwls_2_3_6b_time[,max(i)]))^2)
-  adj_rsquared_6b_time[k] = 1-adj_r2_corr_time[k]*sum((res_reg1_iwls_2_3_6b_time[,max(i)] - cond_var_6b_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6b_time[,max(i)] - mean(res_reg1_iwls_2_3_6b_time[,max(i)]))^2)
-  rmse_6b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_iwls_2_3_6b_time[,max(i)] - cond_var_6b_time[,max(i)])^2))
-  rrmse_6b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_iwls_2_3_6b_time[,max(i)] - cond_var_6b_time[,max(i)])/res_reg1_iwls_2_3_6b_time[,max(i)])^2))
+  Q_99_at_n_6b_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6b_urb[k]))
+  rsquared_6b_urb[k] = 1-sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - cond_var_6b_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - mean(res_reg1_iwls_2_3_6b_urb[,max(i)]))^2)
+  adj_rsquared_6b_urb[k] = 1-adj_r2_corr_urb[k]*sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - cond_var_6b_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - mean(res_reg1_iwls_2_3_6b_urb[,max(i)]))^2)
+  rmse_6b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - cond_var_6b_urb[,max(i)])^2))
+  rrmse_6b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum(((res_reg1_iwls_2_3_6b_urb[,max(i)] - cond_var_6b_urb[,max(i)])/res_reg1_iwls_2_3_6b_urb[,max(i)])^2))
   
-  se_cc1_6b_time <- sqrt(sum((res_reg1_iwls_2_3_6b_time[,max(i)] - cond_var_6b_time[,max(i)])^2)/((length(wy_order_time[[k]]) - 2)*sum((wy_order_time[[k]]^2-mean(wy_order_time[[k]]^2))^2)))
-  t_cc1_6b_time <- cc1_6b_time[k]/se_cc1_6b_time
-  p_cc1_6b_time[k] = 2*(pt(-abs(t_cc1_6b_time), df=length(wy_order_time[[k]]) - 1)) 
+  se_cc1_6b_urb <- sqrt(sum((res_reg1_iwls_2_3_6b_urb[,max(i)] - cond_var_6b_urb[,max(i)])^2)/((length(bhc_ts_TIA_vec_station_2[[k]]) - 2)*sum((bhc_ts_TIA_vec_station_2[[k]]^2-mean(bhc_ts_TIA_vec_station_2[[k]]^2))^2)))
+  t_cc1_6b_urb <- cc1_6b_urb[k]/se_cc1_6b_urb
+  p_cc1_6b_urb[k] = 2*(pt(-abs(t_cc1_6b_urb), df=length(bhc_ts_TIA_vec_station_2[[k]]) - 1)) 
   
   # Fit model 6c (Exponential with IWLS)
   
+  '
   # Establish output arrays for each record (length-dependent)
-  wt_6c_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_6c_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_2_3_6c_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cond_var_6c_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_6c_urb <- array(NA,dim=c(length(wy_order_urb[[k]]),10))
+  res_reg1_iwls_6c_urb <- array(NA,dim=c(length(wy_order_urb[[k]]),10))
+  res_reg1_iwls_2_3_6c_urb <- array(NA,dim=c(length(wy_order_urb[[k]]),10))
+  cond_var_6c_urb <- array(NA,dim=c(length(wy_order_urb[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_6c_time[,i] = rep(1,length(wy_order_time[[k]])) #Make a list
+      wt_6c_urb[,i] = rep(1,length(wy_order_urb[[k]])) #Make a list
     } else {
-      wt_6c_time[,i] = 1/(cond_var_6c_time[,i-1]) #Make a list
+      wt_6c_urb[,i] = 1/(cond_var_6c_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_6c_time[,i]) # Make a list
-    b0_reg1_iwls_6c_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[1])
-    b1_reg1_iwls_6c_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[2])
-    res_reg1_iwls_6c_time[,i] = as.numeric(residuals(flood_reg1_iwls_time.lm)) # Make a list
-    res_reg1_iwls_2_3_6c_time[,i] = (as.numeric(residuals(flood_reg1_iwls_time.lm)^2))^(1/3)# Make a list
-    res_reg1_iwls_2_3_6c_time.lm <- lm(res_reg1_iwls_2_3_6c_time[,i] ~ exp(wy_order_time[[k]])) # Make a list
-    cc0_6c_time[k,i] = as.numeric((res_reg1_iwls_2_3_6c_time.lm$coefficients[1])) 
-    cc1_6c_time[k,i] = as.numeric((res_reg1_iwls_2_3_6c_time.lm$coefficients[2])) 
-    cond_var_6c_time[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6c_time.lm))  # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cond_var_6c_time[l,i] < 0.001){
-        cond_var_6c_time[l,i] <- 0.001
+    flood_reg1_iwls_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ wy_order_urb[[k]], weights=wt_6c_urb[,i]) # Make a list
+    b0_reg1_iwls_6c_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[1])
+    b1_reg1_iwls_6c_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[2])
+    res_reg1_iwls_6c_urb[,i] = as.numeric(residuals(flood_reg1_iwls_urb.lm)) # Make a list
+    res_reg1_iwls_2_3_6c_urb[,i] = (as.numeric(residuals(flood_reg1_iwls_urb.lm)^2))^(1/3)# Make a list
+    res_reg1_iwls_2_3_6c_urb.lm <- lm(res_reg1_iwls_2_3_6c_urb[,i] ~ exp(wy_order_urb[[k]])) # Make a list
+    cc0_6c_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6c_urb.lm$coefficients[1])) 
+    cc1_6c_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6c_urb.lm$coefficients[2])) 
+    cond_var_6c_urb[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6c_urb.lm))  # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cond_var_6c_urb[l,i] < 0.001){
+        cond_var_6c_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_6c_list_time[[k]] = wt_6c_time[,10]
-  res_reg1_iwls_6c_list_time[[k]] = res_reg1_iwls_6c_time[,10]
-  res_reg1_iwls_2_3_6c_list_time[[k]] = res_reg1_iwls_2_3_6c_time[,10]
-  cond_var_6c_list_time[[k]] = cond_var_6c_time[,10]
-  cond_var_at_n_6c_time[k] = (exp(cc0_6c_time[k,10] + cc1_6c_time[k,10] * max(wy_order_time[[k]])))^3
+  wt_6c_list_urb[[k]] = wt_6c_urb[,10]
+  res_reg1_iwls_6c_list_urb[[k]] = res_reg1_iwls_6c_urb[,10]
+  res_reg1_iwls_2_3_6c_list_urb[[k]] = res_reg1_iwls_2_3_6c_urb[,10]
+  cond_var_6c_list_urb[[k]] = cond_var_6c_urb[,10]
+  cond_var_at_n_6c_urb[k] = (exp(cc0_6c_urb[k,10] + cc1_6c_urb[k,10] * max(wy_order_urb[[k]])))^3
   #cond_var_at_n_6c[k] = (cc0_6c[k,10] + cc1_6c[k,10] * max(exp(wy_order[[k]])))^3 + 
   #  var(res_reg1_iwls_2_3_6c[,10]-cond_var_6c[,10])*(3*cc0_6c[k,10] + 3*cc1_6c[k,10] * max(exp(wy_order[[k]]))) + mean((res_reg1_iwls_2_3_6c[,10]-cond_var_6c[,10])^3)
   #plot(wy_order[[k]],res_reg1_2_3,col="blue")
   #lines(wy_order[[k]],res_reg2_5a)
-  Q_99_at_n_6c_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6c_time[k]))
-  rsquared_6c_time[k] = 1-sum((res_reg1_iwls_2_3_6c_time[,max(i)] - cond_var_6c_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6c_time[,max(i)] - mean(res_reg1_iwls_2_3_6c_time[,max(i)]))^2)
-  adj_rsquared_6c_time[k] = 1-adj_r2_corr_time[k]*sum((res_reg1_iwls_2_3_6c_time[,max(i)] - cond_var_6c_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6c_time[,max(i)] - mean(res_reg1_iwls_2_3_6c_time[,max(i)]))^2)
-  rmse_6c_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_iwls_2_3_6c_time[,max(i)] - cond_var_6c_time[,max(i)])^2))
-  rrmse_6c_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_iwls_2_3_6c_time[,max(i)] - cond_var_6c_time[,max(i)])/res_reg1_iwls_2_3_6a_time[,max(i)])^2))
+  Q_99_at_n_6c_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6c_urb[k]))
+  rsquared_6c_urb[k] = 1-sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - cond_var_6c_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - mean(res_reg1_iwls_2_3_6c_urb[,max(i)]))^2)
+  adj_rsquared_6c_urb[k] = 1-adj_r2_corr_urb[k]*sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - cond_var_6c_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - mean(res_reg1_iwls_2_3_6c_urb[,max(i)]))^2)
+  rmse_6c_urb[k] = sqrt(1/length(wy_order_urb[[k]])*sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - cond_var_6c_urb[,max(i)])^2))
+  rrmse_6c_urb[k] = sqrt(1/length(wy_order_urb[[k]])*sum(((res_reg1_iwls_2_3_6c_urb[,max(i)] - cond_var_6c_urb[,max(i)])/res_reg1_iwls_2_3_6a_urb[,max(i)])^2))
   
-  se_cc1_6c_time <- sqrt(sum((res_reg1_iwls_2_3_6c_time[,max(i)] - cond_var_6c_time[,max(i)])^2)/((length(wy_order_time[[k]]) - 2)*sum((exp(wy_order_time[[k]])-mean(exp(wy_order_time[[k]])))^2)))
-  t_cc1_6c_time <- cc1_6c_time[k]/se_cc1_6c_time
-  p_cc1_6c_time[k] = 2*(pt(-abs(t_cc1_6c_time), df=length(wy_order_time[[k]]) - 1)) 
-  
+  se_cc1_6c_urb <- sqrt(sum((res_reg1_iwls_2_3_6c_urb[,max(i)] - cond_var_6c_urb[,max(i)])^2)/((length(wy_order_urb[[k]]) - 2)*sum((exp(wy_order_urb[[k]])-mean(exp(wy_order_urb[[k]])))^2)))
+  t_cc1_6c_urb <- cc1_6c_urb[k]/se_cc1_6c_urb
+  p_cc1_6c_urb[k] = 2*(pt(-abs(t_cc1_6c_urb), df=length(wy_order_urb[[k]]) - 1)) 
+  '
   
   # Fit model 6d (Logarithmic with IWLS)
   
   # Establish output arrays for each record (length-dependent)
-  wt_6d_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_6d_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_2_3_6d_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cond_var_6d_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_6d_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_6d_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_2_3_6d_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  cond_var_6d_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_6d_time[,i] = rep(1,length(wy_order_time[[k]])) #Make a list
+      wt_6d_urb[,i] = rep(1,length(bhc_ts_TIA_vec_station[[k]])) #Make a list
     } else {
-      wt_6d_time[,i] = 1/(cond_var_6d_time[,i-1]) #Make a list
+      wt_6d_urb[,i] = 1/(cond_var_6d_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_6d_time[,i]) # Make a list
-    b0_reg1_iwls_6d_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[1])
-    b1_reg1_iwls_6d_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[2])
-    res_reg1_iwls_6d_time[,i] = as.numeric(residuals(flood_reg1_iwls_time.lm)) # Make a list
-    res_reg1_iwls_2_3_6d_time[,i] = (as.numeric(residuals(flood_reg1_iwls_time.lm)^2))^(1/3)# Make a list
-    res_reg1_iwls_2_3_6d_time.lm <- lm(res_reg1_iwls_2_3_6d_time[,i] ~ log(wy_order_time[[k]])) # Make a list
-    cc0_6d_time[k,i] = as.numeric((res_reg1_iwls_2_3_6d_time.lm$coefficients[1])) 
-    cc1_6d_time[k,i] = as.numeric((res_reg1_iwls_2_3_6d_time.lm$coefficients[2])) 
-    cond_var_6d_time[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6d_time.lm))  # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cond_var_6d_time[l,i] < 0.001){
-        cond_var_6d_time[l,i] <- 0.001
+    flood_reg1_iwls_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station[[k]], weights=wt_6d_urb[,i]) # Make a list
+    b0_reg1_iwls_6d_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[1])
+    b1_reg1_iwls_6d_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[2])
+    res_reg1_iwls_6d_urb[,i] = as.numeric(residuals(flood_reg1_iwls_urb.lm)) # Make a list
+    res_reg1_iwls_2_3_6d_urb[,i] = (as.numeric(residuals(flood_reg1_iwls_urb.lm)^2))^(1/3)# Make a list
+    res_reg1_iwls_2_3_6d_urb.lm <- lm(res_reg1_iwls_2_3_6d_urb[,i] ~ log(bhc_ts_TIA_vec_station[[k]])) # Make a list
+    cc0_6d_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6d_urb.lm$coefficients[1])) 
+    cc1_6d_urb[k,i] = as.numeric((res_reg1_iwls_2_3_6d_urb.lm$coefficients[2])) 
+    cond_var_6d_urb[,i] = as.numeric(fitted(res_reg1_iwls_2_3_6d_urb.lm))  # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cond_var_6d_urb[l,i] < 0.001){
+        cond_var_6d_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_6d_list_time[[k]] = wt_6d_time[,10]
-  res_reg1_iwls_6d_list_time[[k]] = res_reg1_iwls_6d_time[,10]
-  res_reg1_iwls_2_3_6d_list_time[[k]] = res_reg1_iwls_2_3_6d_time[,10]
-  cond_var_6d_list_time[[k]] = cond_var_6d_time[,10]
-  res_reg2_6d_var_time <- res_dof_corr_time[k]*var(res_reg1_iwls_2_3_6d_time[,10]-cond_var_6d_time[,10])
+  wt_6d_list_urb[[k]] = wt_6d_urb[,10]
+  res_reg1_iwls_6d_list_urb[[k]] = res_reg1_iwls_6d_urb[,10]
+  res_reg1_iwls_2_3_6d_list_urb[[k]] = res_reg1_iwls_2_3_6d_urb[,10]
+  cond_var_6d_list_urb[[k]] = cond_var_6d_urb[,10]
+  res_reg2_6d_var_urb <- res_dof_corr_urb[k]*var(res_reg1_iwls_2_3_6d_urb[,10]-cond_var_6d_urb[,10])
   
-  cond_var_at_n_6d_time[k] = res_dof_corr_time[k]*((cc0_6d_time[k,10] + cc1_6d_time[k,10] * max(log(wy_order_time[[k]])))^3 + res_reg2_6d_var_time*(3*cc0_6d_time[k,10] + 3*cc1_6d_time[k,10] * max(log(wy_order_time[[k]]))) + mean((res_reg1_iwls_2_3_6d_time[,10]-cond_var_6d_time[,10])^3))
+  cond_var_at_n_6d_urb[k] = res_dof_corr_urb[k]*((cc0_6d_urb[k,10] + cc1_6d_urb[k,10] * max(log(bhc_ts_TIA_vec_station[[k]])))^3 + res_reg2_6d_var_urb*(3*cc0_6d_urb[k,10] + 3*cc1_6d_urb[k,10] * max(log(bhc_ts_TIA_vec_station[[k]]))) + mean((res_reg1_iwls_2_3_6d_urb[,10]-cond_var_6d_urb[,10])^3))
   #plot(wy_order,res_reg1_2_3,col="blue") 
   #lines(wy_order,res_reg2_5a)
-  Q_99_at_n_6d_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6d_time[k]))
-  rsquared_6d_time[k] = 1-sum((res_reg1_iwls_2_3_6d_time[,max(i)] - cond_var_6d_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6d_time[,max(i)] - mean(res_reg1_iwls_2_3_6d_time[,max(i)]))^2)
-  adj_rsquared_6d_time[k] = 1-adj_r2_corr_time[k]*sum((res_reg1_iwls_2_3_6d_time[,max(i)] - cond_var_6d_time[,max(i)])^2)/sum((res_reg1_iwls_2_3_6d_time[,max(i)] - mean(res_reg1_iwls_2_3_6d_time[,max(i)]))^2)
-  rmse_6d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_iwls_2_3_6d_time[,max(i)] - cond_var_6d_time[,max(i)])^2))
-  rrmse_6d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_iwls_2_3_6d_time[,max(i)] - cond_var_6d_time[,max(i)])/res_reg1_iwls_2_3_6d_time[,max(i)])^2))
+  Q_99_at_n_6d_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_6d_urb[k]))
+  rsquared_6d_urb[k] = 1-sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - cond_var_6d_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - mean(res_reg1_iwls_2_3_6d_urb[,max(i)]))^2)
+  adj_rsquared_6d_urb[k] = 1-adj_r2_corr_urb[k]*sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - cond_var_6d_urb[,max(i)])^2)/sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - mean(res_reg1_iwls_2_3_6d_urb[,max(i)]))^2)
+  rmse_6d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - cond_var_6d_urb[,max(i)])^2))
+  rrmse_6d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_iwls_2_3_6d_urb[,max(i)] - cond_var_6d_urb[,max(i)])/res_reg1_iwls_2_3_6d_urb[,max(i)])^2))
   
-  se_cc1_6d_time <- sqrt(sum((res_reg1_iwls_2_3_6d_time[,max(i)] - cond_var_6d_time[,max(i)])^2)/((length(wy_order_time[[k]]) - 2)*sum((log(wy_order_time[[k]])-mean(log(wy_order_time[[k]])))^2)))
-  t_cc1_6d_time <- cc1_6d_time[k]/se_cc1_6d_time 
-  p_cc1_6d_time[k] = 2*(pt(-abs(t_cc1_6d_time), df=length(wy_order_time[[k]]) - 1))  
+  se_cc1_6d_urb <- sqrt(sum((res_reg1_iwls_2_3_6d_urb[,max(i)] - cond_var_6d_urb[,max(i)])^2)/((length(bhc_ts_TIA_vec_station[[k]]) - 2)*sum((log(bhc_ts_TIA_vec_station[[k]])-mean(log(bhc_ts_TIA_vec_station[[k]])))^2)))
+  t_cc1_6d_urb <- cc1_6d_urb[k]/se_cc1_6d_urb 
+  p_cc1_6d_urb[k] = 2*(pt(-abs(t_cc1_6d_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1))  
   
   # Fit Model A using GLM 
-  glm.cond_var_a_time <- glm2(formula = res_reg1_2_3_time ~ wy_order_1_3_time, family=gaussian) 
-  b0_glm_cond_var_a_time[k] = as.numeric(glm.cond_var_a_time$coefficients[1]) 
-  b1_glm_cond_var_a_time[k] = as.numeric(glm.cond_var_a_time$coefficients[2]) 
-  res_dev_time <- as.numeric(glm.cond_var_a_time$deviance) 
-  null_dev_time <- as.numeric(glm.cond_var_a_time$null.deviance) 
-  pseudo_rsquared_glm_a_time[k] = 1 - res_dev_time/null_dev_time
-  cond_var_at_n_glm_a_time[k] = (b0_glm_cond_var_a_time[k] + b1_glm_cond_var_a_time[k] * max(wy_order_1_3_time))^3
-  Q_99_at_n_glm_a_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_glm_a_time[k]))
+  glm.cond_var_a_urb <- glm2(formula = res_reg1_2_3_urb ~ bhc_ts_TIA_vec_station_1_3[[k]], family=gaussian) 
+  b0_glm_cond_var_a_urb[k] = as.numeric(glm.cond_var_a_urb$coefficients[1]) 
+  b1_glm_cond_var_a_urb[k] = as.numeric(glm.cond_var_a_urb$coefficients[2]) 
+  res_dev_urb <- as.numeric(glm.cond_var_a_urb$deviance) 
+  null_dev_urb <- as.numeric(glm.cond_var_a_urb$null.deviance) 
+  pseudo_rsquared_glm_a_urb[k] = 1 - res_dev_urb/null_dev_urb
+  cond_var_at_n_glm_a_urb[k] = (b0_glm_cond_var_a_urb[k] + b1_glm_cond_var_a_urb[k] * max(bhc_ts_TIA_vec_station_1_3[[k]]))^3
+  Q_99_at_n_glm_a_urb[k] = exp(cond_med_at_n_urb[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_glm_a_urb[k]))
   
   # Fit model using GLM with gamma regression without IWLS
-  res_reg1_2_time <- as.numeric((res_reg1_time[[k]])^2)
-  glm.cond_var_gamma_time <- glm2(formula = res_reg1_2_time ~ wy_order_time[[k]], family=Gamma(link=log))
+  res_reg1_2_urb <- as.numeric((res_reg1_urb[[k]])^2)
+  glm.cond_var_gamma_urb <- glm2(formula = res_reg1_2_urb ~ bhc_ts_TIA_vec_station[[k]], family=Gamma(link=log))
   #Initial conditions: start=c(mean(log(res_reg1_2)),0)
-  b0_glm_cond_var_gamma_time[k] = as.numeric(glm.cond_var_gamma_time$coefficients[1])
-  b1_glm_cond_var_gamma_time[k] = as.numeric(glm.cond_var_gamma_time$coefficients[2])
-  res_dev_time <- as.numeric(glm.cond_var_gamma_time$deviance)
-  null_dev_time <- as.numeric(glm.cond_var_gamma_time$null.deviance) # intercept-only model
-  pseudo_rsquared_glm_gamma_time[k] = 1 - res_dev_time/null_dev_time
-  cond_var_at_n_glm_gamma_time[k] = exp(b0_glm_cond_var_gamma_time[k] + b1_glm_cond_var_gamma_time[k] * max(wy_order_time[[k]])) #Transformation bias?
-  Q_99_at_n_glm_gamma_time[k] = exp(cond_med_at_n_time[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_glm_gamma_time[k]))
+  b0_glm_cond_var_gamma_urb[k] = as.numeric(glm.cond_var_gamma_urb$coefficients[1])
+  b1_glm_cond_var_gamma_urb[k] = as.numeric(glm.cond_var_gamma_urb$coefficients[2])
+  res_dev_urb <- as.numeric(glm.cond_var_gamma_urb$deviance)
+  null_dev_urb <- as.numeric(glm.cond_var_gamma_urb$null.deviance) # intercept-only model
+  pseudo_rsquared_glm_gamma_urb[k] = 1 - res_dev_urb/null_dev_urb
+  cond_var_at_n_glm_gamma_urb[k] = exp(b0_glm_cond_var_gamma_urb[k] + b1_glm_cond_var_gamma_urb[k] * max(bhc_ts_TIA_vec_station[[k]])) #Transformation bias?
+  Q_99_at_n_glm_gamma_urb[k] = exp(cond_med_at_n_urb[k]+qnorm(0.99,0,1)*sqrt(cond_var_at_n_glm_gamma_urb[k]))
   
   # Fit model using GLM with gamma regression with IWLS
-  wt_iwls_glm_gamma_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_glm_gamma_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_2_iwls_glm_gamma_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cvar_iwls_glm_gamma_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_iwls_glm_gamma_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_glm_gamma_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_2_iwls_glm_gamma_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  cvar_iwls_glm_gamma_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_iwls_glm_gamma_time[,i] = rep(1,length(wy_order_time[[k]])) #Make a list
+      wt_iwls_glm_gamma_urb[,i] = rep(1,length(bhc_ts_TIA_vec_station[[k]])) #Make a list
     } else {
-      wt_iwls_glm_gamma_time[,i] = 1/(cvar_iwls_glm_gamma_time[,i-1]) #Make a list
+      wt_iwls_glm_gamma_urb[,i] = 1/(cvar_iwls_glm_gamma_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_iwls_glm_gamma_time[,i]) # Make a list
-    b0_reg1_iwls_glm_gamma_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[1])
-    b1_reg1_iwls_glm_gamma_time[k,i] = as.numeric((flood_reg1_iwls_time.lm)$coefficients[2])
-    res_reg1_iwls_glm_gamma_time[,i] = as.numeric(residuals(flood_reg1_iwls_time.lm)) # Make a list
-    res_reg1_2_iwls_glm_gamma_time[,i] = as.numeric((residuals(flood_reg1_iwls_time.lm))^2)# Make a list
-    res_reg1_2_iwls_glm_gamma_time.lm <- glm2(res_reg1_2_iwls_glm_gamma_time[,i] ~ wy_order_time[[k]],family=Gamma(link=log)) # Make a list
-    cc0_iwls_glm_gamma_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_time.lm$coefficients[1]))
-    cc1_iwls_glm_gamma_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_time.lm$coefficients[2]))
-    cvar_iwls_glm_gamma_time[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_time.lm)) # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cvar_iwls_glm_gamma_time[l,i] < 0.001){
-        cvar_iwls_glm_gamma_time[l,i] <- 0.001
+    flood_reg1_iwls_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station[[k]], weights=wt_iwls_glm_gamma_urb[,i]) # Make a list
+    b0_reg1_iwls_glm_gamma_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[1])
+    b1_reg1_iwls_glm_gamma_urb[k,i] = as.numeric((flood_reg1_iwls_urb.lm)$coefficients[2])
+    res_reg1_iwls_glm_gamma_urb[,i] = as.numeric(residuals(flood_reg1_iwls_urb.lm)) # Make a list
+    res_reg1_2_iwls_glm_gamma_urb[,i] = as.numeric((residuals(flood_reg1_iwls_urb.lm))^2)# Make a list
+    res_reg1_2_iwls_glm_gamma_urb.lm <- glm2(res_reg1_2_iwls_glm_gamma_urb[,i] ~ bhc_ts_TIA_vec_station[[k]],family=Gamma(link=log)) # Make a list
+    cc0_iwls_glm_gamma_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_urb.lm$coefficients[1]))
+    cc1_iwls_glm_gamma_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_urb.lm$coefficients[2]))
+    cvar_iwls_glm_gamma_urb[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_urb.lm)) # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cvar_iwls_glm_gamma_urb[l,i] < 0.001){
+        cvar_iwls_glm_gamma_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_iwls_glm_gamma_list_time[[k]] = wt_iwls_glm_gamma_time[,10]  
-  res_reg1_iwls_glm_gamma_list_time[[k]] = res_reg1_iwls_glm_gamma_time[,10]  
-  res_reg1_2_iwls_glm_gamma_list_time[[k]] = res_reg1_2_iwls_glm_gamma_time[,10]  
-  cvar_iwls_glm_gamma_list_time[[k]] = cvar_iwls_glm_gamma_time[,10]  
-  res_reg2_glm_gamma_var_time <- res_dof_corr_time[k]*var(res_reg1_2_iwls_glm_gamma_time[,10]-cvar_iwls_glm_gamma_time[,10]) 
+  wt_iwls_glm_gamma_list_urb[[k]] = wt_iwls_glm_gamma_urb[,10]  
+  res_reg1_iwls_glm_gamma_list_urb[[k]] = res_reg1_iwls_glm_gamma_urb[,10]  
+  res_reg1_2_iwls_glm_gamma_list_urb[[k]] = res_reg1_2_iwls_glm_gamma_urb[,10]  
+  cvar_iwls_glm_gamma_list_urb[[k]] = cvar_iwls_glm_gamma_urb[,10]  
+  res_reg2_glm_gamma_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_iwls_glm_gamma_urb[,10]-cvar_iwls_glm_gamma_urb[,10]) 
   
-  cond_var_at_n_iwls_glm_gamma_time[k] = res_dof_corr_time[k]*exp((cc0_iwls_glm_gamma_time[k,10] + cc1_iwls_glm_gamma_time[k,10] * max(wy_order_time[[k]]))) 
+  cond_var_at_n_iwls_glm_gamma_urb[k] = res_dof_corr_urb[k]*exp((cc0_iwls_glm_gamma_urb[k,10] + cc1_iwls_glm_gamma_urb[k,10] * max(bhc_ts_TIA_vec_station[[k]]))) 
   
-  Q_99_at_n_iwls_glm_gamma_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_time[k])) 
-  rsquared_iwls_glm_gamma_time[k] = 1-sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - cvar_iwls_glm_gamma_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_time[,max(i)]))^2) 
-  adj_rsquared_iwls_glm_gamma_time[k] = 1 -adj_r2_corr_time[k]*sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - cvar_iwls_glm_gamma_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_time[,max(i)]))^2) 
-  rmse_iwls_glm_gamma_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - cvar_iwls_glm_gamma_time[,max(i)])^2))
-  rrmse_iwls_glm_gamma_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_iwls_glm_gamma_time[,max(i)] - cvar_iwls_glm_gamma_time[,max(i)])/cvar_iwls_glm_gamma_time[,max(i)])^2))
+  Q_99_at_n_iwls_glm_gamma_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_urb[k])) 
+  rsquared_iwls_glm_gamma_urb[k] = 1-sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - cvar_iwls_glm_gamma_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_urb[,max(i)]))^2) 
+  adj_rsquared_iwls_glm_gamma_urb[k] = 1 -adj_r2_corr_urb[k]*sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - cvar_iwls_glm_gamma_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_urb[,max(i)]))^2) 
+  rmse_iwls_glm_gamma_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - cvar_iwls_glm_gamma_urb[,max(i)])^2))
+  rrmse_iwls_glm_gamma_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - cvar_iwls_glm_gamma_urb[,max(i)])/cvar_iwls_glm_gamma_urb[,max(i)])^2))
   
-  se_cc1_iwls_glm_gamma_time <- sqrt(sum((res_reg1_2_iwls_glm_gamma_time[,max(i)] - cvar_iwls_glm_gamma_time[,max(i)])^2)/((length(wy_order_time[[k]]) - 2)*sum((wy_order_time[[k]]-mean(wy_order_time[[k]]))^2))) 
-  t_cc1_iwls_glm_gamma_time <- cc1_iwls_glm_gamma_time[k]/se_cc1_iwls_glm_gamma_time  
-  p_cc1_iwls_glm_gamma_time[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_time), df=length(wy_order_time[[k]]) - 1)) 
+  se_cc1_iwls_glm_gamma_urb <- sqrt(sum((res_reg1_2_iwls_glm_gamma_urb[,max(i)] - cvar_iwls_glm_gamma_urb[,max(i)])^2)/((length(bhc_ts_TIA_vec_station[[k]]) - 2)*sum((bhc_ts_TIA_vec_station[[k]]-mean(bhc_ts_TIA_vec_station[[k]]))^2))) 
+  t_cc1_iwls_glm_gamma_urb <- cc1_iwls_glm_gamma_urb[k]/se_cc1_iwls_glm_gamma_urb  
+  p_cc1_iwls_glm_gamma_urb[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_urb), df=length(bhc_ts_TIA_vec_station[[k]]) - 1)) 
   
   # Fit model using GLM with gamma regression with IWLS and quadratic model (7b)
-  wt_iwls_glm_gamma_7b_time  <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_iwls_glm_gamma_7b_time  <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  res_reg1_2_iwls_glm_gamma_7b_time  <- array(NA,dim=c(length(wy_order_time[[k]]),10))
-  cvar_iwls_glm_gamma_7b_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
+  wt_iwls_glm_gamma_7b_urb  <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_iwls_glm_gamma_7b_urb  <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  res_reg1_2_iwls_glm_gamma_7b_urb  <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
+  cvar_iwls_glm_gamma_7b_urb <- array(NA,dim=c(length(bhc_ts_TIA_vec_station[[k]]),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_iwls_glm_gamma_7b_time[,i] = rep(1,length(wy_order_2_time[[k]])) #Make a list
+      wt_iwls_glm_gamma_7b_urb[,i] = rep(1,length(bhc_ts_TIA_vec_station_2[[k]])) #Make a list
     } else {
-      wt_iwls_glm_gamma_7b_time[,i] = 1/(cvar_iwls_glm_gamma_7b_time[,i-1]) #Make a list
+      wt_iwls_glm_gamma_7b_urb[,i] = 1/(cvar_iwls_glm_gamma_7b_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_7b_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_iwls_glm_gamma_7b_time[,i]) # Make a list
-    b0_reg1_iwls_glm_gamma_7b_time[k,i] = as.numeric((flood_reg1_iwls_7b_time.lm)$coefficients[1])
-    b1_reg1_iwls_glm_gamma_7b_time[k,i] = as.numeric((flood_reg1_iwls_7b_time.lm)$coefficients[2])
-    res_reg1_iwls_glm_gamma_7b_time[,i] = as.numeric(residuals(flood_reg1_iwls_7b_time.lm)) # Make a list
-    res_reg1_2_iwls_glm_gamma_7b_time[,i] = as.numeric((residuals(flood_reg1_iwls_7b_time.lm))^2)# Make a list
-    res_reg1_2_iwls_glm_gamma_7b_time.lm <- glm2(res_reg1_2_iwls_glm_gamma_7b_time[,i] ~ wy_order_2_time[[k]],family=Gamma(link=log)) # Make a list
-    cc0_iwls_glm_gamma_7b_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7b_time.lm$coefficients[1]))
-    cc1_iwls_glm_gamma_7b_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7b_time.lm$coefficients[2]))
-    cvar_iwls_glm_gamma_7b_time[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_7b_time.lm)) # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cvar_iwls_glm_gamma_7b_time[l,i] < 0.001){
-        cvar_iwls_glm_gamma_7b_time[l,i] <- 0.001
+    flood_reg1_iwls_7b_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station_2[[k]], weights=wt_iwls_glm_gamma_7b_urb[,i]) # Make a list
+    b0_reg1_iwls_glm_gamma_7b_urb[k,i] = as.numeric((flood_reg1_iwls_7b_urb.lm)$coefficients[1])
+    b1_reg1_iwls_glm_gamma_7b_urb[k,i] = as.numeric((flood_reg1_iwls_7b_urb.lm)$coefficients[2])
+    res_reg1_iwls_glm_gamma_7b_urb[,i] = as.numeric(residuals(flood_reg1_iwls_7b_urb.lm)) # Make a list
+    res_reg1_2_iwls_glm_gamma_7b_urb[,i] = as.numeric((residuals(flood_reg1_iwls_7b_urb.lm))^2)# Make a list
+    res_reg1_2_iwls_glm_gamma_7b_urb.lm <- glm2(res_reg1_2_iwls_glm_gamma_7b_urb[,i] ~ bhc_ts_TIA_vec_station_2[[k]],family=Gamma(link=log)) # Make a list
+    cc0_iwls_glm_gamma_7b_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7b_urb.lm$coefficients[1]))
+    cc1_iwls_glm_gamma_7b_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7b_urb.lm$coefficients[2]))
+    cvar_iwls_glm_gamma_7b_urb[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_7b_urb.lm)) # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cvar_iwls_glm_gamma_7b_urb[l,i] < 0.001){
+        cvar_iwls_glm_gamma_7b_urb[l,i] <- 0.001
       } 
     
   } 
   
-  wt_iwls_glm_gamma_7b_list_time[[k]] = wt_iwls_glm_gamma_7b_time[,10]  
-  res_reg1_iwls_glm_gamma_7b_list_time[[k]] = res_reg1_iwls_glm_gamma_7b_time[,10]  
-  res_reg1_2_iwls_glm_gamma_7b_list_time[[k]] = res_reg1_2_iwls_glm_gamma_7b_time[,10]  
-  cvar_iwls_glm_gamma_7b_list_time[[k]] = cvar_iwls_glm_gamma_7b_time[,10]  
-  res_reg2_glm_gamma_7b_var_time <- res_dof_corr_time[k]*var(res_reg1_2_iwls_glm_gamma_7b_time[,10]-cvar_iwls_glm_gamma_7b_time[,10]) 
+  wt_iwls_glm_gamma_7b_list_urb[[k]] = wt_iwls_glm_gamma_7b_urb[,10]  
+  res_reg1_iwls_glm_gamma_7b_list_urb[[k]] = res_reg1_iwls_glm_gamma_7b_urb[,10]  
+  res_reg1_2_iwls_glm_gamma_7b_list_urb[[k]] = res_reg1_2_iwls_glm_gamma_7b_urb[,10]  
+  cvar_iwls_glm_gamma_7b_list_urb[[k]] = cvar_iwls_glm_gamma_7b_urb[,10]  
+  res_reg2_glm_gamma_7b_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_iwls_glm_gamma_7b_urb[,10]-cvar_iwls_glm_gamma_7b_urb[,10]) 
   
-  cond_var_at_n_iwls_glm_gamma_7b_time[k] = res_dof_corr_time[k]*exp((cc0_iwls_glm_gamma_7b_time[k,10] + cc1_iwls_glm_gamma_7b_time[k,10] * max(wy_order_2_time[[k]]))) 
+  cond_var_at_n_iwls_glm_gamma_7b_urb[k] = res_dof_corr_urb[k]*exp((cc0_iwls_glm_gamma_7b_urb[k,10] + cc1_iwls_glm_gamma_7b_urb[k,10] * max(bhc_ts_TIA_vec_station_2[[k]]))) 
   
-  Q_99_at_n_iwls_glm_gamma_7b_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_7b_time[k])) 
-  rsquared_iwls_glm_gamma_7b_time[k] = 1-sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - cvar_iwls_glm_gamma_7b_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7b_time[,max(i)]))^2) 
-  adj_rsquared_iwls_glm_gamma_7b_time[k] = 1 -adj_r2_corr_time[k]*sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - cvar_iwls_glm_gamma_7b_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7b_time[,max(i)]))^2) 
-  rmse_iwls_glm_gamma_7b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - cvar_iwls_glm_gamma_7b_time[,max(i)])^2))
-  rrmse_iwls_glm_gamma_7b_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - cvar_iwls_glm_gamma_7b_time[,max(i)])/cvar_iwls_glm_gamma_7b_time[,max(i)])^2))
+  Q_99_at_n_iwls_glm_gamma_7b_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_7b_urb[k])) 
+  rsquared_iwls_glm_gamma_7b_urb[k] = 1-sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - cvar_iwls_glm_gamma_7b_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)]))^2) 
+  adj_rsquared_iwls_glm_gamma_7b_urb[k] = 1 -adj_r2_corr_urb[k]*sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - cvar_iwls_glm_gamma_7b_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)]))^2) 
+  rmse_iwls_glm_gamma_7b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - cvar_iwls_glm_gamma_7b_urb[,max(i)])^2))
+  rrmse_iwls_glm_gamma_7b_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station_2[[k]])*sum(((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - cvar_iwls_glm_gamma_7b_urb[,max(i)])/cvar_iwls_glm_gamma_7b_urb[,max(i)])^2))
   
-  se_cc1_iwls_glm_gamma_7b_time <- sqrt(sum((res_reg1_2_iwls_glm_gamma_7b_time[,max(i)] - cvar_iwls_glm_gamma_7b_time[,max(i)])^2)/((length(wy_order_2_time[[k]]) - 2)*sum((wy_order_2_time[[k]]-mean(wy_order_2_time[[k]]))^2))) 
-  t_cc1_iwls_glm_gamma_7b_time <- cc1_iwls_glm_gamma_7b_time[k]/se_cc1_iwls_glm_gamma_7b_time  
-  p_cc1_iwls_glm_gamma_7b_time[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_7b_time), df=length(wy_order_2_time[[k]]) - 1)) 
+  se_cc1_iwls_glm_gamma_7b_urb <- sqrt(sum((res_reg1_2_iwls_glm_gamma_7b_urb[,max(i)] - cvar_iwls_glm_gamma_7b_urb[,max(i)])^2)/((length(bhc_ts_TIA_vec_station_2[[k]]) - 2)*sum((bhc_ts_TIA_vec_station_2[[k]]-mean(bhc_ts_TIA_vec_station_2[[k]]))^2))) 
+  t_cc1_iwls_glm_gamma_7b_urb <- cc1_iwls_glm_gamma_7b_urb[k]/se_cc1_iwls_glm_gamma_7b_urb  
+  p_cc1_iwls_glm_gamma_7b_urb[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_7b_urb), df=length(bhc_ts_TIA_vec_station_2[[k]]) - 1)) 
   
   # Fit model using GLM with gamma regression with IWLS and logarithmic model
-  wt_iwls_glm_gamma_7d_time <- array(NA,dim=c(length(log(wy_order_time[[k]])),10))
-  res_reg1_iwls_glm_gamma_7d_time <- array(NA,dim=c(length(log(wy_order_time[[k]])),10))
-  res_reg1_2_iwls_glm_gamma_7d_time <- array(NA,dim=c(length(log(wy_order_time[[k]])),10))
-  cvar_iwls_glm_gamma_7d_time <- array(NA,dim=c(length(log(wy_order_time[[k]])),10))
+  wt_iwls_glm_gamma_7d_urb <- array(NA,dim=c(length(log(bhc_ts_TIA_vec_station[[k]])),10))
+  res_reg1_iwls_glm_gamma_7d_urb <- array(NA,dim=c(length(log(bhc_ts_TIA_vec_station[[k]])),10))
+  res_reg1_2_iwls_glm_gamma_7d_urb <- array(NA,dim=c(length(log(bhc_ts_TIA_vec_station[[k]])),10))
+  cvar_iwls_glm_gamma_7d_urb <- array(NA,dim=c(length(log(bhc_ts_TIA_vec_station[[k]])),10))
   
   for (i in 1:10){
     if(i == 1){
-      wt_iwls_glm_gamma_7d_time[,i] = rep(1,length(log(wy_order_time[[k]]))) #Make a list
+      wt_iwls_glm_gamma_7d_urb[,i] = rep(1,length(log(bhc_ts_TIA_vec_station[[k]]))) #Make a list
     } else {
-      wt_iwls_glm_gamma_7d_time[,i] = 1/(cvar_iwls_glm_gamma_7d_time[,i-1]) #Make a list
+      wt_iwls_glm_gamma_7d_urb[,i] = 1/(cvar_iwls_glm_gamma_7d_urb[,i-1]) #Make a list
     }
-    flood_reg1_iwls_7d_time.lm <- lm(log(peak_flow_time + 0.01) ~ wy_order_time[[k]], weights=wt_iwls_glm_gamma_7d_time[,i]) # Make a list
-    b0_reg1_iwls_glm_gamma_7d_time[k,i] = as.numeric((flood_reg1_iwls_7d_time.lm)$coefficients[1])
-    b1_reg1_iwls_glm_gamma_7d_time[k,i] = as.numeric((flood_reg1_iwls_7d_time.lm)$coefficients[2])
-    res_reg1_iwls_glm_gamma_7d_time[,i] = as.numeric(residuals(flood_reg1_iwls_7d_time.lm)) # Make a list
-    res_reg1_2_iwls_glm_gamma_7d_time[,i] = as.numeric((residuals(flood_reg1_iwls_7d_time.lm))^2)# Make a list
-    res_reg1_2_iwls_glm_gamma_7d_time.lm <- glm2(res_reg1_2_iwls_glm_gamma_7d_time[,i] ~ log(wy_order_time[[k]]),family=Gamma(link=log)) # Make a list
-    cc0_iwls_glm_gamma_7d_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7d_time.lm$coefficients[1]))
-    cc1_iwls_glm_gamma_7d_time[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7d_time.lm$coefficients[2]))
-    cvar_iwls_glm_gamma_7d_time[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_7d_time.lm)) # Make this a list
-    for (l in 1:length(peak_flow_time))
-      if (cvar_iwls_glm_gamma_7d_time[l,i] < 0.001){
-        cvar_iwls_glm_gamma_7d_time[l,i] <- 0.001
+    flood_reg1_iwls_7d_urb.lm <- lm(log(peak_flow_urb + 0.01) ~ bhc_ts_TIA_vec_station[[k]], weights=wt_iwls_glm_gamma_7d_urb[,i]) # Make a list
+    b0_reg1_iwls_glm_gamma_7d_urb[k,i] = as.numeric((flood_reg1_iwls_7d_urb.lm)$coefficients[1])
+    b1_reg1_iwls_glm_gamma_7d_urb[k,i] = as.numeric((flood_reg1_iwls_7d_urb.lm)$coefficients[2])
+    res_reg1_iwls_glm_gamma_7d_urb[,i] = as.numeric(residuals(flood_reg1_iwls_7d_urb.lm)) # Make a list
+    res_reg1_2_iwls_glm_gamma_7d_urb[,i] = as.numeric((residuals(flood_reg1_iwls_7d_urb.lm))^2)# Make a list
+    res_reg1_2_iwls_glm_gamma_7d_urb.lm <- glm2(res_reg1_2_iwls_glm_gamma_7d_urb[,i] ~ log(bhc_ts_TIA_vec_station[[k]]),family=Gamma(link=log)) # Make a list
+    cc0_iwls_glm_gamma_7d_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7d_urb.lm$coefficients[1]))
+    cc1_iwls_glm_gamma_7d_urb[k,i] = as.numeric((res_reg1_2_iwls_glm_gamma_7d_urb.lm$coefficients[2]))
+    cvar_iwls_glm_gamma_7d_urb[,i] = as.numeric(fitted(res_reg1_2_iwls_glm_gamma_7d_urb.lm)) # Make this a list
+    for (l in 1:length(peak_flow_urb))
+      if (cvar_iwls_glm_gamma_7d_urb[l,i] < 0.001){
+        cvar_iwls_glm_gamma_7d_urb[l,i] <- 0.001
       } 
     
     
   } 
   
-  wt_iwls_glm_gamma_7d_list_time[[k]] = wt_iwls_glm_gamma_7d_time[,10]  
-  res_reg1_iwls_glm_gamma_7d_list_time[[k]] = res_reg1_iwls_glm_gamma_7d_time[,10]  
-  res_reg1_2_iwls_glm_gamma_7d_list_time[[k]] = res_reg1_2_iwls_glm_gamma_7d_time[,10]  
-  cvar_iwls_glm_gamma_7d_list_time[[k]] = cvar_iwls_glm_gamma_7d_time[,10]  
-  res_reg2_glm_gamma_7d_var_time <- res_dof_corr_time[k]*var(res_reg1_2_iwls_glm_gamma_7d_time[,10]-cvar_iwls_glm_gamma_7d_time[,10]) 
+  wt_iwls_glm_gamma_7d_list_urb[[k]] = wt_iwls_glm_gamma_7d_urb[,10]  
+  res_reg1_iwls_glm_gamma_7d_list_urb[[k]] = res_reg1_iwls_glm_gamma_7d_urb[,10]  
+  res_reg1_2_iwls_glm_gamma_7d_list_urb[[k]] = res_reg1_2_iwls_glm_gamma_7d_urb[,10]  
+  cvar_iwls_glm_gamma_7d_list_urb[[k]] = cvar_iwls_glm_gamma_7d_urb[,10]  
+  res_reg2_glm_gamma_7d_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_iwls_glm_gamma_7d_urb[,10]-cvar_iwls_glm_gamma_7d_urb[,10]) 
   
-  cond_var_at_n_iwls_glm_gamma_7d_time[k] = res_dof_corr_time[k]*exp((cc0_iwls_glm_gamma_7d_time[k,10] + cc1_iwls_glm_gamma_7d_time[k,10] * max(log(wy_order_time[[k]])))) 
+  cond_var_at_n_iwls_glm_gamma_7d_urb[k] = res_dof_corr_urb[k]*exp((cc0_iwls_glm_gamma_7d_urb[k,10] + cc1_iwls_glm_gamma_7d_urb[k,10] * max(log(bhc_ts_TIA_vec_station[[k]])))) 
   
-  Q_99_at_n_iwls_glm_gamma_7d_time[k] = exp(cond_med_at_n_time[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_7d_time[k])) 
-  rsquared_iwls_glm_gamma_7d_time[k] = 1-sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - cvar_iwls_glm_gamma_7d_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7d_time[,max(i)]))^2) 
-  adj_rsquared_iwls_glm_gamma_7d_time[k] = 1 -adj_r2_corr_time[k]*sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - cvar_iwls_glm_gamma_7d_time[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7d_time[,max(i)]))^2) 
-  rmse_iwls_glm_gamma_7d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - cvar_iwls_glm_gamma_7d_time[,max(i)])^2)) 
-  rrmse_iwls_glm_gamma_7d_time[k] = sqrt(1/length(wy_order_time[[k]])*sum(((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - cvar_iwls_glm_gamma_7d_time[,max(i)])/cvar_iwls_glm_gamma_7d_time[,max(i)])^2))
+  Q_99_at_n_iwls_glm_gamma_7d_urb[k] = exp(cond_med_at_n_urb[k] + qnorm(0.99,0,1)*sqrt(cond_var_at_n_iwls_glm_gamma_7d_urb[k])) 
+  rsquared_iwls_glm_gamma_7d_urb[k] = 1-sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - cvar_iwls_glm_gamma_7d_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)]))^2) 
+  adj_rsquared_iwls_glm_gamma_7d_urb[k] = 1 -adj_r2_corr_urb[k]*sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - cvar_iwls_glm_gamma_7d_urb[,max(i)])^2)/sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - mean(res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)]))^2) 
+  rmse_iwls_glm_gamma_7d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - cvar_iwls_glm_gamma_7d_urb[,max(i)])^2)) 
+  rrmse_iwls_glm_gamma_7d_urb[k] = sqrt(1/length(bhc_ts_TIA_vec_station[[k]])*sum(((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - cvar_iwls_glm_gamma_7d_urb[,max(i)])/cvar_iwls_glm_gamma_7d_urb[,max(i)])^2))
   
-  se_cc1_iwls_glm_gamma_7d_time <- sqrt(sum((res_reg1_2_iwls_glm_gamma_7d_time[,max(i)] - cvar_iwls_glm_gamma_7d_time[,max(i)])^2)/((length(log(wy_order_time[[k]])) - 2)*sum((log(wy_order_time[[k]])-mean(log(wy_order_time[[k]])))^2))) 
-  t_cc1_iwls_glm_gamma_7d_time <- cc1_iwls_glm_gamma_7d_time[k]/se_cc1_iwls_glm_gamma_7d_time  
-  p_cc1_iwls_glm_gamma_7d_time[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_7d_time), df=length(log(wy_order_time[[k]])) - 1)) 
+  se_cc1_iwls_glm_gamma_7d_urb <- sqrt(sum((res_reg1_2_iwls_glm_gamma_7d_urb[,max(i)] - cvar_iwls_glm_gamma_7d_urb[,max(i)])^2)/((length(log(bhc_ts_TIA_vec_station[[k]])) - 2)*sum((log(bhc_ts_TIA_vec_station[[k]])-mean(log(bhc_ts_TIA_vec_station[[k]])))^2))) 
+  t_cc1_iwls_glm_gamma_7d_urb <- cc1_iwls_glm_gamma_7d_urb[k]/se_cc1_iwls_glm_gamma_7d_urb  
+  p_cc1_iwls_glm_gamma_7d_urb[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_7d_urb), df=length(log(bhc_ts_TIA_vec_station[[k]])) - 1)) 
   
+  '
   # Fit model using GLM with gamma regression with IWLS and "standard deviation" model
   wt_iwls_glm_gamma_7f_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
   res_reg1_iwls_glm_gamma_7f_time <- array(NA,dim=c(length(wy_order_time[[k]]),10))
@@ -1231,6 +1187,7 @@ for (k in 1:nrow(station_group_time)){
   se_cc1_iwls_glm_gamma_7f_time <- sqrt(sum((res_reg1_abs_iwls_glm_gamma_7f_time[,max(i)] - sqrt(cvar_iwls_glm_gamma_7f_time[,max(i)]))^2)/((length(wy_order_time[[k]]) - 2)*sum((wy_order_time[[k]]-mean(wy_order_time[[k]]))^2))) 
   t_cc1_iwls_glm_gamma_7f_time <- cc1_iwls_glm_gamma_7f_time[k]/se_cc1_iwls_glm_gamma_7f_time  
   p_cc1_iwls_glm_gamma_7f_time[k] = 2*(pt(-abs(t_cc1_iwls_glm_gamma_7f_time), df=length(wy_order_time[[k]]) - 1)) 
+  '
   
   # MAIN LOOP ENDS
 }

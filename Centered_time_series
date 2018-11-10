@@ -1,0 +1,41 @@
+
+nn <- 50
+tt <- runif(1000000,1,nn)
+tt_ctr <- tt-mean(tt)
+bb <- 0.001
+cc <- 0.10
+aa <- 10
+qq <- aa + bb*tt_ctr + rnorm(1000000,0,1+0.03*tt_ctr)
+
+qq_pred <- lm(qq~tt_ctr)
+res <- residuals(qq_pred)
+res_2_3 <- (res^2)^(1/3)
+
+c1_temp <- seq(-0.03,0.03,0.001)
+rsq_c1_1_3 <- vector(mode="numeric",length=length(c1_temp))
+rsq_c1_2_3 <- vector(mode="numeric",length=length(c1_temp))
+rsq_c1_log <- vector(mode="numeric",length=length(c1_temp))
+
+for (k in 1:length(c1_temp)){
+  tt_ctr_1_3 <- (1+c1_temp[k]*tt_ctr)^(1/3)
+  nu_2_3 <- var(res_2_3)/(1+(c1_temp[k]^2)^(1/3)*var(tt)^(2/3)) 
+  res_var_est_2_3  <- nu_2_3*tt_ctr_1_3
+  ee_pred <- lm(res_2_3 ~ res_var_est_2_3)
+  res_ee_pred <- residuals(ee_pred)
+  rsq_c1_1_3[k] = summary(ee_pred)$r.squared
+  
+  tt_ctr_2_3 <- (1+c1_temp[k]*tt_ctr)^(2/3)
+  nu_2_3 <- var(res_2_3)/(1+(c1_temp[k]^2)^(2/3)*var(tt)^(2/3)) 
+  res_var_est_2_3  <- nu_2_3*tt_ctr_2_3
+  ee_pred <- lm(res_2_3 ~ res_var_est_2_3)
+  res_ee_pred <- residuals(ee_pred)
+  rsq_c1_2_3[k] = summary(ee_pred)$r.squared
+}
+
+lm_2step <- lm(res_2_3 ~ tt_ctr)
+summary(lm_2step)
+res_lm_2step <- residuals(lm_2step)
+
+
+# When data are transformed is estimate of nu^2 correct
+
