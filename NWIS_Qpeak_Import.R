@@ -12,7 +12,7 @@ library("WriteXLS")
 
 # testing
 
-setwd("C:/Users/joryh/ownCloud/documents/Tufts/WRR_Flood_Nonstationarity/Q_Data_Analysis")
+setwd("C:/Users/joryh/ownCloud/documents/Tufts/WRR_Flood_Nonstationarity/Q_Data_Analysis/NSFFA")
 
 # FIX: SOURCING OF PPCC TEST
 source("PPCC_test_norm_USGS_Lorenz.R")
@@ -91,8 +91,8 @@ for(i in 502:510){
 
 ############################### IMPORT ANNUAL FLOOD SERIES ######################################
 
-# Import list of stations with at least 30 years of data
-Qpeak_30yrs <- read.csv("Qpeak_TimeSeries_v3.csv")
+# Import list of stations with at least 30 years of data (file too big to store in git repo)
+Qpeak_30yrs <- read.csv("C:/Users/joryh/ownCloud/documents/Tufts/WRR_Flood_Nonstationarity/Q_data_analysis/NSFFA_backup/Qpeak_TimeSeries_v3.csv")
 #Qpeak_30yrs <- read.csv("Export_30yr_Feb2018.csv",colClasses=c(rep("character",2)))
 Qpeak_30yrs <- Qpeak_30yrs[1:505399,]
 nrow(Qpeak_30yrs )
