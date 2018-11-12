@@ -3,7 +3,7 @@
 # Extract matches 
 
 # Increasing trend in mean, decreasing trend in Cv
-index_test <- match(output_lin_mplus_sig05_vminus_sig05_clean$site_id,site_info$site_no)
+index_test <- match(output_lin_mplus_sig05_vminus_sig05_urb$site_id,site_info$site_no)
 site_info_mplus_vminus <- site_info[na.omit(index_test),]
 
 # Increasing trend in mean, increasing trend in Cv
