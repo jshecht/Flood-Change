@@ -11,7 +11,6 @@ station_group_urb <- rbind(output_lin_mplus_sig05_vminus_sig05_urb,
 # Data generated in NWIS_Qpeak
 
 # Conditional mean model
-
 wy_order_urb  <- list()
 wy_order_2_urb  <- list()
 #wy_order_mean_urb  <- vector(length=nrow(station_group_urb))
@@ -414,10 +413,12 @@ Q_99_at_n_iwls_glm_gamma_7f_urb <- vector(length=nrow(station_group_urb))
 p_cc1_iwls_glm_gamma_7f_urb <- vector(length=nrow(station_group_urb)) 
 
 # MAIN LOOP STARTS 
+
+# Loop over stations with +mu,-Cv or +mu,+Cv
 for (k in 1:nrow(station_group_urb)){  
   
   # Create vector of TIA to match water years
-  # FIX: bhc_ts_ann_mat
+  # Determines how many years between 1940 (start of housing data) and 2016 have annual peak flows
   wy_in_1940_2016 <- vector(mode="logical",length=ncol(bhc_ts_ann_mat))
   for(i in 1:77){
     if((1939 + i) %in% wy == TRUE){
@@ -427,12 +428,14 @@ for (k in 1:nrow(station_group_urb)){
     }
   }
   
-  # Determine water year order for urban equation
+  # Determine water year order for urban equation, set missing values to zero, filter them out
   wy_order_1940_2016 <- wy_in_1940_2016*seq(1,77,1)
-  wy_order_urb[[k]] =wy_order_1940_2016[wy_order_1940_2016>0]
+  wy_order_urb[[k]] = wy_order_1940_2016[wy_order_1940_2016>0]
   
-  bhc_ts_TIA_vec <- as.numeric(df_bhc_ts_urb_final_ann[k,6:82][wy_in_1940_2016 == TRUE])
+  # Find TIA values for years with peak flows
+  bhc_ts_TIA_vec <- as.numeric(df_bhc_ts_urb_final_ann[station_group_urb[[k,1]],6:82][wy_in_1940_2016 == TRUE])
   
+  # Assign output variable to list, and then compute values raised to 2 and 1/3 powers
   bhc_ts_TIA_vec_station[[k]] = bhc_ts_TIA_vec
   bhc_ts_TIA_vec_station_2[[k]] = bhc_ts_TIA_vec^2
   bhc_ts_TIA_vec_station_1_3[[k]] = bhc_ts_TIA_vec^(1/3)
@@ -447,9 +450,12 @@ for (k in 1:nrow(station_group_urb)){
     }
   }
   
-  peak_va_urb <- peak_va[wy_pre1940==FALSE]
+  # Compute annual peak flows from 1940-current, assign them to peaks_urb_list
+  peak_va_urb <- peak_va[wy_pre1940==FALSE]/35.3146662127 # Convert from cfs to m^3/s
   peaks_urb[[k]] <- peak_va_urb
-#  wy_time <- wy_station[[station_group_time[k,1]]]
+  peak_flow_urb <- peaks_urb[[station_group_urb[k,1]]]
+  
+#  wy_time <- wy_station[[station_group_urb[k,1]]]
 #  wy_order_time[[k]] = wy_time - min(wy_time) + 1
 #  wy_order_2_time[[k]] = (wy_time - min(wy_time) + 1)^2
 #  wy_order_mean_time[k] = mean(wy_order_time[[k]])
@@ -457,7 +463,6 @@ for (k in 1:nrow(station_group_urb)){
 #  wyear_time <- wy_order_time[[k]] # Add in water year stuff
 #  peak_flow_urb <- peaks_urb[[station_group_urb[k,1]]]/35.3146662127
   
-  peak_flow_urb <- peaks_urb[[k]] 
   skew_peak_flow_urb[k] = skewness(peak_flow_urb)
   cv_peak_flow_urb[k] = sd(peak_flow_urb)/mean(peak_flow_urb)
   skew_ln_peak_flow_urb[k] = skewness(log(peak_flow_urb+0.0001))
@@ -488,12 +493,12 @@ for (k in 1:nrow(station_group_urb)){
   
   # View transformed residuals assuming wy_order~res
   plot(bhc_ts_TIA_vec_station[[k]],(res_reg1_urb[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance ^ (2/3)")
-  title(c(as.character(station_group_time$bhc_ts_urb_final.STANAME[k]),
-          as.character(station_group_time$bhc_ts_urb_final.STAID_TEXT[k]),
+  title(c(as.character(station_group_urb$bhc_ts_urb_final.STANAME[k]),
+          as.character(station_group_urb$bhc_ts_urb_final.STAID_TEXT[k]),
           "DA",
-          as.numeric(station_group_time$bhc_ts_urb_final.DRAIN_SQKM[k])),
+          as.numeric(station_group_urb$bhc_ts_urb_final.DRAIN_SQKM[k])),
         cex.main=0.8)
-  text(min(bhc_ts_TIA_vec_station[[k]])+1,max((res_reg1_urb[[k]]^2)^(1/3))-0.08,bquote(~R^2 ==.(round(rsquared_5a_time[k],3))),cex=0.7)
+  text(min(bhc_ts_TIA_vec_station[[k]])+1,max((res_reg1_urb[[k]]^2)^(1/3))-0.08,bquote(~R^2 ==.(round(rsquared_5a_urb[k],3))),cex=0.7)
   
   # Type II errors using methods from Vogel et al. (2013) and Rosner et al. (2014)
   delta_b1_reg1_true_urb[k] = 1/(sqrt(1/cor(bhc_ts_TIA_vec_station[[k]],log(peak_flow_urb+0.0001))^2-1))
@@ -504,10 +509,14 @@ for (k in 1:nrow(station_group_urb)){
   # View transformed residuals assuming wy_order[[k]]~ln(res^2)
   #log_res_reg1_2 <- log(res_reg1[[k]]^2)
   #plot(wy_order[[k]],log_res_reg1_2,xlab="Water year in record (t)",ylab= "Residual Variance",pch=4)
-  #title(c(site_info[station_group_time[k,1]],
-  #        as.character(site_info[station_group_time[k,1]]),
+  #title(c(site_info[station_group_urb[k,1]],
+  #        as.character(site_info[station_group_urb[k,1]]),
   #        "DA",
-  #        as.numeric(as.character(site_info[station_group_time[k,1],6]))),cex.main=0.8)
+  #        as.numeric(as.character(site_info[station_group_urb[k,1],6]))),cex.main=0.8)
+  
+  # Fit conditional variance model A using two-stage least squares with an Anscombe transformation
+  res_reg1_2_3_urb <- (res_reg1_urb[[k]]^2)^(1/3)
+  wy_order_1_3_urb <- wy_order_urb[[k]]^(1/3)
   
   # FIX REPLACE: Models 0-4
  
@@ -565,10 +574,10 @@ for (k in 1:nrow(station_group_urb)){
   
   # View transformed residuals assuming wy_order~res
   #plot(wy_order,(res_reg1[[k]]^2)^(1/3),xlab="Water year in record (t)",ylab= "Residual Variance ^ (2/3)")
-  #title(c(site_names[station_group_time[k,1]],
-  #      as.character(site_id[station_group_time[k,1]]),
+  #title(c(site_names[station_group_urb[k,1]],
+  #      as.character(site_id[station_group_urb[k,1]]),
   #      "DA",
-  #      as.numeric(as.character(site_info[station_group_time[k,1],6]))),cex.main=0.8) 
+  #      as.numeric(as.character(site_info[station_group_urb[k,1],6]))),cex.main=0.8) 
   #text(max(wy_order)-10,max((res_reg1[[k]]^2)^(1/3))-0.08,bquote(~R^2 ==. (round(rsquared_5a[k],3))),cex=0.7)
   # max((res_reg1[[k]]^2)^(1/3))-0.08   
   
@@ -582,7 +591,7 @@ for (k in 1:nrow(station_group_urb)){
   res_reg2_5b_var_urb <- res_dof_corr_urb[k]*var(res_reg1_2_3_urb - res_reg2_5b_fit_urb)
   
   # Test alternative conditional max estimation method
-  res_reg2_5b_trans_mean_urb <- res_dof_corr_urb[k]*(cc0_5b_urb[k] + cc1_5b_urb[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))^3 + 3*res_reg2_5b_var_time*(cc0_5b_time[k] + cc1_5b_time[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))
+  res_reg2_5b_trans_mean_urb <- res_dof_corr_urb[k]*(cc0_5b_urb[k] + cc1_5b_urb[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))^3 + 3*res_reg2_5b_var_urb*(cc0_5b_urb[k] + cc1_5b_urb[k] * mean(bhc_ts_TIA_vec_station_2[[k]]))
   
   #qq_urb <- var(res_reg1_2_3_urb - res_reg2_5b_fit_urb)
   #rr_urb <- 0.5*(res_reg2_5b_trans_mean_urb - mean((res_reg1_2_3_urb-res_reg2_5b_fit_urb)^3)) #0.5*(0.08086177 - 0.00227) = 0.0382209
@@ -1194,42 +1203,44 @@ for (k in 1:nrow(station_group_urb)){
 
 # Compare quantiles
 # FIX: CODE AS MATRIX
-Q99_compar <- c(Q_99_at_n_2sls_0a_time,
-                Q_99_at_n_2sls_0b_time,
-                Q_99_at_n_2sls_1a_time,
-                Q_99_at_n_2sls_1b_time,
-                Q_99_at_n_2a_time,
-                Q_99_at_n_2b_time,
-                Q_99_at_n_5a_time,
-                Q_99_at_n_5b_time,
-                Q_99_at_n_5c_time,
-                Q_99_at_n_5d_time,
-                Q_99_at_n_5e_time,
-                Q_99_at_n_6a_time,
-                Q_99_at_n_6b_time,
-                Q_99_at_n_6c_time,
-                Q_99_at_n_6d_time,
-                Q_99_at_n_glm_gamma_time,
-                Q_99_at_n_iwls_glm_gamma_time)
+
+# Compare different quantile estimates
+Q99_compar <- c(Q_99_at_n_2sls_0a_urb,
+                Q_99_at_n_2sls_0b_urb,
+                Q_99_at_n_2sls_1a_urb,
+                Q_99_at_n_2sls_1b_urb,
+                Q_99_at_n_2a_urb,
+                Q_99_at_n_2b_urb,
+                Q_99_at_n_5a_urb,
+                Q_99_at_n_5b_urb,
+                Q_99_at_n_5c_urb,
+                Q_99_at_n_5d_urb,
+                Q_99_at_n_5e_urb,
+                Q_99_at_n_6a_urb,
+                Q_99_at_n_6b_urb,
+                Q_99_at_n_6c_urb,
+                Q_99_at_n_6d_urb,
+                Q_99_at_n_glm_gamma_urb,
+                Q_99_at_n_iwls_glm_gamma_urb)
 
 # COMPARE R^2(adj) of different models for all stations
 par(mfrow=c(1,3))
 
-boxplot(adj_rsquared_5a_time,
-        adj_rsquared_iwls_glm_gamma_time,
+boxplot(adj_rsquared_5a_urb,
+        adj_rsquared_iwls_glm_gamma_urb,
         names=c("OLS","GLM-IWLS"),
         ylab="Adjusted R^2",
         ylim=c(-0.1,0.7),
         main="Linear")
 
-boxplot(adj_rsquared_5b_time,
-        adj_rsquared_iwls_glm_gamma_7b_time,
+boxplot(adj_rsquared_5b_urb,
+        adj_rsquared_iwls_glm_gamma_7b_urb,
         names=c("OLS","GLM-IWLS"),
         ylim=c(-0.1,0.7),
         main="Quadratic")
 
-boxplot(adj_rsquared_5d_time,
-        adj_rsquared_iwls_glm_gamma_7d_time,
+boxplot(adj_rsquared_5d_urb,
+        adj_rsquared_iwls_glm_gamma_7d_urb,
         names=c("OLS","GLM-IWLS"),
         ylim=c(-0.1,0.7),
         main="Logarithmic")
@@ -1237,39 +1248,39 @@ boxplot(adj_rsquared_5d_time,
 par(mfrow=c(1,1))
 
 # Compute range of estimates for each site for model 5
-Q_99_at_n_5_time <- matrix(data=c(Q_99_at_n_5a_time,
-                                  Q_99_at_n_5b_time,
-                                  Q_99_at_n_5d_time),
-                           nrow=3,ncol=length(Q_99_at_n_5a_time),byrow=TRUE)
-apply(Q_99_at_n_5_time,2,min)/apply(Q_99_at_n_5_time,2,max)
+Q_99_at_n_5_urb <- matrix(data=c(Q_99_at_n_5a_urb,
+                                  Q_99_at_n_5b_urb,
+                                  Q_99_at_n_5d_urb),
+                           nrow=3,ncol=length(Q_99_at_n_5a_urb),byrow=TRUE)
+apply(Q_99_at_n_5_urb,2,min)/apply(Q_99_at_n_5_urb,2,max)
 
 # Compare R^2(adj) for each site for model 5
-adj_rsquared_5_time <- matrix(c(adj_rsquared_5a_time,adj_rsquared_5b_time,adj_rsquared_5d_time),nrow=3,ncol=length(Q_99_at_n_5a_time),byrow=TRUE)
-apply(adj_rsquared_5_time,2,max)-apply(adj_rsquared_5_time,2,min)
+adj_rsquared_5_urb <- matrix(c(adj_rsquared_5a_urb,adj_rsquared_5b_urb,adj_rsquared_5d_urb),nrow=3,ncol=length(Q_99_at_n_5a_urb),byrow=TRUE)
+apply(adj_rsquared_5_urb,2,max)-apply(adj_rsquared_5_urb,2,min)
 
 # Which model of model 5 is best? 
-order(adj_rsquared_5_time[,2],decreasing=T)[1]
-adj_rsquared_5_best_time <- apply(adj_rsquared_5_time,2,function(x)order(x,decreasing=T)[1])
+order(adj_rsquared_5_urb[,2],decreasing=T)[1]
+adj_rsquared_5_best_urb <- apply(adj_rsquared_5_urb,2,function(x)order(x,decreasing=T)[1])
 
 # COmpare OLS and GLM-IWLS R2adj for best models
 
 par(mfrow=c(1,3))
 
-boxplot(adj_rsquared_5a_time[adj_rsquared_5_best_time==1],
-        adj_rsquared_iwls_glm_gamma_time[adj_rsquared_5_best_time==1],
+boxplot(adj_rsquared_5a_urb[adj_rsquared_5_best_urb==1],
+        adj_rsquared_iwls_glm_gamma_urb[adj_rsquared_5_best_urb==1],
         names=c("OLS","GLM-IWLS"),
         ylab="Adjusted R^2",
         ylim=c(-0.1,0.6),
         main="Linear")
 
-boxplot(adj_rsquared_5b_time[adj_rsquared_5_best_time==2],
-        adj_rsquared_iwls_glm_gamma_7b_time[adj_rsquared_5_best_time==2],
+boxplot(adj_rsquared_5b_urb[adj_rsquared_5_best_urb==2],
+        adj_rsquared_iwls_glm_gamma_7b_urb[adj_rsquared_5_best_urb==2],
         names=c("OLS","GLM-IWLS"),
         ylim=c(-0.1,0.6),
         main="Quadratic")
 
-boxplot(adj_rsquared_5d_time[adj_rsquared_5_best_time==3],
-        adj_rsquared_iwls_glm_gamma_7d_time[adj_rsquared_5_best_time==3],
+boxplot(adj_rsquared_5d_urb[adj_rsquared_5_best_urb==3],
+        adj_rsquared_iwls_glm_gamma_7d_urb[adj_rsquared_5_best_urb==3],
         names=c("OLS","GLM-IWLS"),
         ylim=c(-0.1,0.6),
         main="Logarithmic")
@@ -1278,21 +1289,21 @@ par(mfrow=c(1,1))
 
 # Compare linear model quantiles with alternatives
 par(mfrow=c(1,2))
-plot(Q_99_at_n_5a_time,Q_99_at_n_5b_time,log="xy",xlab="100-year flood (Linear)",ylab="100-year flood (Quadratic)",cex.axis=0.85)
+plot(Q_99_at_n_5a_urb,Q_99_at_n_5b_urb,log="xy",xlab="100-year flood (Linear)",ylab="100-year flood (Quadratic)",cex.axis=0.85)
 lines(seq(0,250000,100),seq(0,250000,100))
-plot(Q_99_at_n_5a_time,Q_99_at_n_5d_time,log="xy",xlab="100-year flood (Linear)",ylab="100-year flood (Logarithmic)",cex.axis=0.85)
+plot(Q_99_at_n_5a_urb,Q_99_at_n_5d_urb,log="xy",xlab="100-year flood (Linear)",ylab="100-year flood (Logarithmic)",cex.axis=0.85)
 lines(seq(0,250000,100),seq(0,250000,100))
 par(mfrow=c(1,1))
 
 # Mean differences
-mean((Q_99_at_n_5b_time - Q_99_at_n_5a_time)/Q_99_at_n_5a_time)
-mean((Q_99_at_n_5d_time - Q_99_at_n_5a_time)/Q_99_at_n_5a_time)
+mean((Q_99_at_n_5b_urb - Q_99_at_n_5a_urb)/Q_99_at_n_5a_urb)
+mean((Q_99_at_n_5d_urb - Q_99_at_n_5a_urb)/Q_99_at_n_5a_urb)
 
 
 # Compare OLS-IWLS vs. OLS in terms of bias (%) for each model structure
-boxplot((Q_99_at_n_6a_time-Q_99_at_n_5a_time)/Q_99_at_n_5a_time,
-        (Q_99_at_n_6b_time-Q_99_at_n_5b_time)/Q_99_at_n_5b_time,
-        (Q_99_at_n_6d_time-Q_99_at_n_5d_time)/Q_99_at_n_5d_time,
+boxplot((Q_99_at_n_6a_urb-Q_99_at_n_5a_urb)/Q_99_at_n_5a_urb,
+        (Q_99_at_n_6b_urb-Q_99_at_n_5b_urb)/Q_99_at_n_5b_urb,
+        (Q_99_at_n_6d_urb-Q_99_at_n_5d_urb)/Q_99_at_n_5d_urb,
         names=c("Linear","Quadratic","Logarithmic"),ylab="Bias(%)")
 abline(h=0,col="red",lty=2)
 
@@ -1300,16 +1311,16 @@ abline(h=0,col="red",lty=2)
 
 # Make comparison for linear model with histogram
 par(mfrow=c(1,2),oma = c(0, 0, 3.5, 0))
-hist(Q_99_at_n_5a_time/Q_99_at_n_no_trend_time,breaks=seq(1,3,0.2),main="Difference with \n stationary estimate",ylim=c(0,20),xlab="Ratio",cex.main=0.85,cex.axis=0.8)
-hist(Q_99_at_n_5a_time/Q_99_at_n_med_only_time,breaks=seq(1,3,0.2),main="Difference with \n conditional mean estimate",ylim=c(0,20),xlab="Ratio",cex.main=0.85,cex.axis=0.8)
+hist(Q_99_at_n_5a_urb/Q_99_at_n_no_trend_urb,breaks=seq(1,3,0.2),main="Difference with \n stationary estimate",ylim=c(0,20),xlab="Ratio",cex.main=0.85,cex.axis=0.8)
+hist(Q_99_at_n_5a_urb/Q_99_at_n_med_only_urb,breaks=seq(1,3,0.2),main="Difference with \n conditional mean estimate",ylim=c(0,20),xlab="Ratio",cex.main=0.85,cex.axis=0.8)
 mtext("Current 100-Year Flood Estimates", outer = TRUE, cex = 1.3)
 par(mfrow=c(1,1),oma = c(0, 0, 0, 0))
 
 # Make comparison for linear model with 1:1 plot
 par(mfrow=c(1,2),mar = c(5,6,3,1.5)+0.1)
-plot(Q_99_at_n_no_trend_time,Q_99_at_n_5a_time,xlim=c(1000,50000),log="xy",xlab="Stationary Q100",ylab="Nonstationary Q100 \n (Trend in mean and Cv)")  
+plot(Q_99_at_n_no_trend_urb,Q_99_at_n_5a_urb,xlim=c(1000,50000),log="xy",xlab="Stationary Q100",ylab="Nonstationary Q100 \n (Trend in mean and Cv)")  
 lines(seq(0,400000,100),seq(0,400000,100)) 
-plot(Q_99_at_n_med_only_time,Q_99_at_n_5a_time,xlim=c(1000,50000),log="xy",xlab="Q100 for trend in mean only",ylab="Nonstationary Q100 \n (Trend in mean and Cv)") 
+plot(Q_99_at_n_med_only_urb,Q_99_at_n_5a_urb,xlim=c(1000,50000),log="xy",xlab="Q100 for trend in mean only",ylab="Nonstationary Q100 \n (Trend in mean and Cv)") 
 lines(seq(0,400000,100),seq(0,400000,100))  
 mtext("Increasing trend in mean, \n Decreasing trend in Cv",outer = TRUE, cex = 1.3)
 par(mfrow=c(1,1),mar = c(5,4,4,2)+0.1)
@@ -1317,24 +1328,24 @@ par(mfrow=c(1,1),mar = c(5,4,4,2)+0.1)
 # Make comparison for best estimates
 
 # Create vector with best quantile estimates
-Q_99_at_n_5_best_time <- c(Q_99_at_n_5a_time[adj_rsquared_5_best_time==1],
-                           Q_99_at_n_5b_time[adj_rsquared_5_best_time==2],
-                           Q_99_at_n_5d_time[adj_rsquared_5_best_time==3])
+Q_99_at_n_5_best_urb <- c(Q_99_at_n_5a_urb[adj_rsquared_5_best_urb==1],
+                           Q_99_at_n_5b_urb[adj_rsquared_5_best_urb==2],
+                           Q_99_at_n_5d_urb[adj_rsquared_5_best_urb==3])
 
 # QUICK AND DIRTY SOLUTION TO ALIGN WITH ORDERING OF Q_99_at_n_5_best 
-Q_99_at_n_no_trend_best_time <- c(Q_99_at_n_no_trend_time[adj_rsquared_5_best_time==1],
-                                  Q_99_at_n_no_trend_time[adj_rsquared_5_best_time==2],
-                                  Q_99_at_n_no_trend_time[adj_rsquared_5_best_time==3])
+Q_99_at_n_no_trend_best_urb <- c(Q_99_at_n_no_trend_urb[adj_rsquared_5_best_urb==1],
+                                  Q_99_at_n_no_trend_urb[adj_rsquared_5_best_urb==2],
+                                  Q_99_at_n_no_trend_urb[adj_rsquared_5_best_urb==3])
 
-Q_99_at_n_med_only_best_time <- c(Q_99_at_n_med_only_time[adj_rsquared_5_best_time==1], 
-                                  Q_99_at_n_med_only_time[adj_rsquared_5_best_time==2],
-                                  Q_99_at_n_med_only_time[adj_rsquared_5_best_time==3])
+Q_99_at_n_med_only_best_urb <- c(Q_99_at_n_med_only_urb[adj_rsquared_5_best_urb==1], 
+                                  Q_99_at_n_med_only_urb[adj_rsquared_5_best_urb==2],
+                                  Q_99_at_n_med_only_urb[adj_rsquared_5_best_urb==3])
 
 
 # Make comparison for all models
 par(mfrow=c(1,2),oma = c(0, 0, 3.5, 0))
-hist(Q_99_at_n_5_best_time/Q_99_at_n_no_trend_best_time,breaks=seq(1,3,0.2),main="Ratio with \n stationary estimate",ylim=c(0,20),xlab="Ratio",col="gray",cex.main=0.85,cex.axis=0.8)
-hist(Q_99_at_n_5_best_time/Q_99_at_n_med_only_best_time,breaks=seq(1,3,0.2),main="Ratio with \n conditional mean estimate",ylim=c(0,20),xlab="Ratio",col="gray",cex.main=0.85,cex.axis=0.8)
+hist(Q_99_at_n_5_best_urb/Q_99_at_n_no_trend_best_urb,breaks=seq(1,3,0.2),main="Ratio with \n stationary estimate",ylim=c(0,20),xlab="Ratio",col="gray",cex.main=0.85,cex.axis=0.8)
+hist(Q_99_at_n_5_best_urb/Q_99_at_n_med_only_best_urb,breaks=seq(1,3,0.2),main="Ratio with \n conditional mean estimate",ylim=c(0,20),xlab="Ratio",col="gray",cex.main=0.85,cex.axis=0.8)
 mtext("Effect of modeling \n increasing trends in variance (N = 36)", outer = TRUE, cex = 1.3)
 par(mfrow=c(1,1),oma = c(0, 0, 0, 0))
 
@@ -1342,17 +1353,17 @@ par(mfrow=c(1,1),oma = c(0, 0, 0, 0))
 
 par(mfrow=c(1,3))
 #plot(Q_99_at_n_5a,Q_99_at_n_iwls_glm_gamma,xlab="OLS Linear",ylab="GLM-IWLS Linear")
-plot(Q_99_at_n_5a_time,Q_99_at_n_iwls_glm_gamma_time,
+plot(Q_99_at_n_5a_urb,Q_99_at_n_iwls_glm_gamma_urb,
      xlab="OLS",ylab="GLM-IWLS",log="xy",xlim=c(100,1000000),ylim=c(100,1000000))
 lines(seq(100,1000000,100),seq(100,1000000,100))
 title("Linear model") 
 
-plot(Q_99_at_n_5b_time,Q_99_at_n_iwls_glm_gamma_7b_time,
+plot(Q_99_at_n_5b_urb,Q_99_at_n_iwls_glm_gamma_7b_urb,
      xlab="OLS",ylab="GLM-IWLS",log="xy",xlim=c(100,1000000),ylim=c(100,1000000))
 lines(seq(100,1000000,100),seq(100,1000000,100))
 title("Quadratic model") 
 
-plot(Q_99_at_n_5d_time,Q_99_at_n_iwls_glm_gamma_7d_time,
+plot(Q_99_at_n_5d_urb,Q_99_at_n_iwls_glm_gamma_7d_urb,
      xlab="OLS",ylab="GLM-IWLS",log="xy",xlim=c(100,1000000),ylim=c(100,1000000))
 lines(seq(100,1000000,100),seq(100,1000000,100))
 title("Logarithmic model") 
@@ -1360,102 +1371,102 @@ title("Logarithmic model")
 par(mfrow=c(1,1))
 
 # Median bias
-median((Q_99_at_n_5a_time - Q_99_at_n_iwls_glm_gamma_time)/Q_99_at_n_iwls_glm_gamma_time) 
+median((Q_99_at_n_5a_urb - Q_99_at_n_iwls_glm_gamma_urb)/Q_99_at_n_iwls_glm_gamma_urb) 
 # 0.07
-median((Q_99_at_n_5b_time - Q_99_at_n_iwls_glm_gamma_7b_time)/Q_99_at_n_iwls_glm_gamma_7b_time)
+median((Q_99_at_n_5b_urb - Q_99_at_n_iwls_glm_gamma_7b_urb)/Q_99_at_n_iwls_glm_gamma_7b_urb)
 # 0.10
-median((Q_99_at_n_5d_time - Q_99_at_n_iwls_glm_gamma_7d_time)/Q_99_at_n_iwls_glm_gamma_7d_time)
+median((Q_99_at_n_5d_urb - Q_99_at_n_iwls_glm_gamma_7d_urb)/Q_99_at_n_iwls_glm_gamma_7d_urb)
 # 0.06
 
 # Boxplots of bias: OLS vs. GLM-IWLS for all stations
 op <- par(mar=c(5, 6, 4, 2) + 0.1)
-boxplot((Q_99_at_n_5a_time - Q_99_at_n_iwls_glm_gamma_time)/Q_99_at_n_iwls_glm_gamma_time*100,
-        (Q_99_at_n_5b_time - Q_99_at_n_iwls_glm_gamma_7b_time)/Q_99_at_n_iwls_glm_gamma_7b_time*100,
-        (Q_99_at_n_5d_time - Q_99_at_n_iwls_glm_gamma_7d_time)/Q_99_at_n_iwls_glm_gamma_7d_time*100,
+boxplot((Q_99_at_n_5a_urb - Q_99_at_n_iwls_glm_gamma_urb)/Q_99_at_n_iwls_glm_gamma_urb*100,
+        (Q_99_at_n_5b_urb - Q_99_at_n_iwls_glm_gamma_7b_urb)/Q_99_at_n_iwls_glm_gamma_7b_urb*100,
+        (Q_99_at_n_5d_urb - Q_99_at_n_iwls_glm_gamma_7d_urb)/Q_99_at_n_iwls_glm_gamma_7d_urb*100,
         names=c("Linear","Quadratic","Logarithmic"),
         ylab="Percent difference \n (OLS - GLM_IWLS)/GLM_IWLS",cex.lab=0.9,cex.axis=0.8)
 abline(h=0,lty=2,col="gray")
 
-IQR((Q_99_at_n_5a_time - Q_99_at_n_iwls_glm_gamma_time)/Q_99_at_n_iwls_glm_gamma_time*100)
+IQR((Q_99_at_n_5a_urb - Q_99_at_n_iwls_glm_gamma_urb)/Q_99_at_n_iwls_glm_gamma_urb*100)
 
 # Boxplots of bias: OLS vs. GLM-IWLS for stations where models perform best
 op <- par(mar=c(5, 6, 4, 2) + 0.1)
-boxplot((Q_99_at_n_5a_time[adj_rsquared_5_best_time==1] - Q_99_at_n_iwls_glm_gamma_time[adj_rsquared_5_best_time==1])/Q_99_at_n_iwls_glm_gamma_time[adj_rsquared_5_best_time==1]*100,
-        (Q_99_at_n_5b_time[adj_rsquared_5_best_time==2] - Q_99_at_n_iwls_glm_gamma_7b_time[adj_rsquared_5_best_time==2])/Q_99_at_n_iwls_glm_gamma_7b_time[adj_rsquared_5_best_time==2]*100,
-        (Q_99_at_n_5d_time[adj_rsquared_5_best_time==3] - Q_99_at_n_iwls_glm_gamma_7d_time[adj_rsquared_5_best_time==3])/Q_99_at_n_iwls_glm_gamma_7d_time[adj_rsquared_5_best_time==3]*100,
+boxplot((Q_99_at_n_5a_urb[adj_rsquared_5_best_urb==1] - Q_99_at_n_iwls_glm_gamma_urb[adj_rsquared_5_best_urb==1])/Q_99_at_n_iwls_glm_gamma_urb[adj_rsquared_5_best_urb==1]*100,
+        (Q_99_at_n_5b_urb[adj_rsquared_5_best_urb==2] - Q_99_at_n_iwls_glm_gamma_7b_urb[adj_rsquared_5_best_urb==2])/Q_99_at_n_iwls_glm_gamma_7b_urb[adj_rsquared_5_best_urb==2]*100,
+        (Q_99_at_n_5d_urb[adj_rsquared_5_best_urb==3] - Q_99_at_n_iwls_glm_gamma_7d_urb[adj_rsquared_5_best_urb==3])/Q_99_at_n_iwls_glm_gamma_7d_urb[adj_rsquared_5_best_urb==3]*100,
         names=c("Linear \n (N = 14)","Quadratic \n (N = 15)","Logarithmic \n (N = 22)"),
         ylab="Percent difference \n (OLS - GLM_IWLS)/GLM_IWLS",cex.lab=0.9,cex.axis=0.8)
 abline(h=0,lty=2,col="gray")
 
-median((Q_99_at_n_5a_time[adj_rsquared_5_best_time==1] - Q_99_at_n_iwls_glm_gamma_time[adj_rsquared_5_best_time==1])/Q_99_at_n_iwls_glm_gamma_time[adj_rsquared_5_best_time==1]*100)
-median((Q_99_at_n_5b_time[adj_rsquared_5_best_time==2] - Q_99_at_n_iwls_glm_gamma_7b_time[adj_rsquared_5_best_time==2])/Q_99_at_n_iwls_glm_gamma_7b_time[adj_rsquared_5_best_time==2]*100)
-median((Q_99_at_n_5d_time[adj_rsquared_5_best_time==3] - Q_99_at_n_iwls_glm_gamma_7d_time[adj_rsquared_5_best_time==3])/Q_99_at_n_iwls_glm_gamma_7d_time[adj_rsquared_5_best_time==3]*100)
+median((Q_99_at_n_5a_urb[adj_rsquared_5_best_urb==1] - Q_99_at_n_iwls_glm_gamma_urb[adj_rsquared_5_best_urb==1])/Q_99_at_n_iwls_glm_gamma_urb[adj_rsquared_5_best_urb==1]*100)
+median((Q_99_at_n_5b_urb[adj_rsquared_5_best_urb==2] - Q_99_at_n_iwls_glm_gamma_7b_urb[adj_rsquared_5_best_urb==2])/Q_99_at_n_iwls_glm_gamma_7b_urb[adj_rsquared_5_best_urb==2]*100)
+median((Q_99_at_n_5d_urb[adj_rsquared_5_best_urb==3] - Q_99_at_n_iwls_glm_gamma_7d_urb[adj_rsquared_5_best_urb==3])/Q_99_at_n_iwls_glm_gamma_7d_urb[adj_rsquared_5_best_urb==3]*100)
 
 
 # Boxplots of bias: OLS-IWLS vs. GLM-IWLS
-boxplot((Q_99_at_n_6a_time - Q_99_at_n_iwls_glm_gamma_time)/Q_99_at_n_iwls_glm_gamma_time*100,
-        (Q_99_at_n_6b_time - Q_99_at_n_iwls_glm_gamma_7b_time)/Q_99_at_n_iwls_glm_gamma_7b_time*100,
-        (Q_99_at_n_6d_time - Q_99_at_n_iwls_glm_gamma_7d_time)/Q_99_at_n_iwls_glm_gamma_7d_time*100,
+boxplot((Q_99_at_n_6a_urb - Q_99_at_n_iwls_glm_gamma_urb)/Q_99_at_n_iwls_glm_gamma_urb*100,
+        (Q_99_at_n_6b_urb - Q_99_at_n_iwls_glm_gamma_7b_urb)/Q_99_at_n_iwls_glm_gamma_7b_urb*100,
+        (Q_99_at_n_6d_urb - Q_99_at_n_iwls_glm_gamma_7d_urb)/Q_99_at_n_iwls_glm_gamma_7d_urb*100,
         names=c("Linear","Quadratic","Logarithmic"),
         ylab="Percent bias \n (OLS - GLM-IWLS)/GLM-IWLS")
 abline(h=0,lty=2,col="gray")
 
 # FIX: ADD PLOTS FOR MODEL 5A
 
-plot(Q_99_at_n_5b_time,Q_99_at_n_iwls_glm_gamma_7b_time)
-plot(Q_99_at_n_5b_time,Q_99_at_n_iwls_glm_gamma_7b_time,xlim=c(0,20000),ylim=c(0,20000),
+plot(Q_99_at_n_5b_urb,Q_99_at_n_iwls_glm_gamma_7b_urb)
+plot(Q_99_at_n_5b_urb,Q_99_at_n_iwls_glm_gamma_7b_urb,xlim=c(0,20000),ylim=c(0,20000),
      xlab="OLS Estimate",
      ylab="IWLS-GLM Estimate") 
 lines(seq(0,20000,1000),seq(0,20000,1000))
 title("Quadratic model: OLS vs. IWLS-GLM")
 
-plot(Q_99_at_n_5d_time,Q_99_at_n_iwls_glm_gamma_7d_time)
-plot(Q_99_at_n_5d_time,Q_99_at_n_iwls_glm_gamma_7d_time,xlim=c(0,20000),ylim=c(0,20000))
+plot(Q_99_at_n_5d_urb,Q_99_at_n_iwls_glm_gamma_7d_urb)
+plot(Q_99_at_n_5d_urb,Q_99_at_n_iwls_glm_gamma_7d_urb,xlim=c(0,20000),ylim=c(0,20000))
 lines(seq(0,20000,1000),seq(0,20000,1000))
 title("Logarithmic model: OLS vs. IWLS-GLM")
 
 # Compare RMSE for OLS and IWLS-GLM
 par(mfrow=c(1,3))
-boxplot(rrmse_5a_time,rrmse_iwls_glm_gamma_time,
+boxplot(rrmse_5a_urb,rrmse_iwls_glm_gamma_urb,
         names=c("OLS","GLM-IWLS"),main="Linear",ylab = "Relative RMSE")
-boxplot(rrmse_5b_time,rrmse_iwls_glm_gamma_7b_time,
+boxplot(rrmse_5b_urb,rrmse_iwls_glm_gamma_7b_urb,
         names=c("OLS","GLM-IWLS"),main="Quadratic",ylab = "Relative RMSE")
-boxplot(rrmse_5d_time,rrmse_iwls_glm_gamma_7d_time,
+boxplot(rrmse_5d_urb,rrmse_iwls_glm_gamma_7d_urb,
         names=c("OLS","GLM-IWLS"),main="Logarithmic",ylab = "Relative RMSE")
 par(mfrow=c(1,1)) 
 
 # Compare RMSE for OLS and IWLS-OLS
 par(mfrow=c(1,3))
-boxplot(rrmse_5a_time,rrmse_6a_time,names=c("OLS","IWLS"),main="Linear")
-boxplot(rrmse_5b_time,rrmse_6b_time,names=c("OLS","IWLS"),main="Quadratic")
-boxplot(rrmse_5d_time,rrmse_6d_time,names=c("OLS","IWLS"),main="Logarithmic")
+boxplot(rrmse_5a_urb,rrmse_6a_urb,names=c("OLS","IWLS"),main="Linear")
+boxplot(rrmse_5b_urb,rrmse_6b_urb,names=c("OLS","IWLS"),main="Quadratic")
+boxplot(rrmse_5d_urb,rrmse_6d_urb,names=c("OLS","IWLS"),main="Logarithmic")
 par(mfrow=c(1,1))
 
 # Compare quantiles for OLS and IWLS-OLS
 par(mfrow=c(1,3))
-boxplot((Q_99_at_n_6a_time - Q_99_at_n_5a_time)/Q_99_at_n_5a_time*100,
+boxplot((Q_99_at_n_6a_urb - Q_99_at_n_5a_urb)/Q_99_at_n_5a_urb*100,
         ylim=c(-20,5),
         ylab="Percent Difference (OLS-IWLS vs. OLS)",
         main="Linear")
-boxplot((Q_99_at_n_6b_time - Q_99_at_n_5b_time)/Q_99_at_n_5b_time*100,
+boxplot((Q_99_at_n_6b_urb - Q_99_at_n_5b_urb)/Q_99_at_n_5b_urb*100,
         ylim=c(-20,5),
         main="Quadratic")
-boxplot((Q_99_at_n_6d_time - Q_99_at_n_5d_time)/Q_99_at_n_5d_time*100,
+boxplot((Q_99_at_n_6d_urb - Q_99_at_n_5d_urb)/Q_99_at_n_5d_urb*100,
         ylim=c(-20,5),
         main="Logarithmic")
 par(mfrow=c(1,1))
 
 
 # Explore stations without LN2 distribution
-#station_group_time_no_ln2 <- station_group_time[which(station_group_time$adq_ppcc_ln2==0),]
+#station_group_urb_no_ln2 <- station_group_urb[which(station_group_urb$adq_ppcc_ln2==0),]
 
 # Quantile estimate comparison
 par(mfrow=c(1,2))
-plot(Q_99_at_n_med_only_time,Q_99_at_n_5a_no_trans_adj_time,log="xy",xlim=c(100,100000),ylim=c(100,100000),
+plot(Q_99_at_n_med_only_urb,Q_99_at_n_5a_no_trans_adj_urb,log="xy",xlim=c(100,100000),ylim=c(100,100000),
      xlab="Trend in mean only",ylab="Trend in mean and Cv",main="No transf bias \n adjustment",cex.main=0.9)
 lines(seq(100,100000,100),seq(100,100000,100))
 
-plot(Q_99_at_n_med_only_time,Q_99_at_n_5a_time,log="xy",xlim=c(100,100000),ylim=c(100,100000),
+plot(Q_99_at_n_med_only_urb,Q_99_at_n_5a_urb,log="xy",xlim=c(100,100000),ylim=c(100,100000),
      xlab="Trend in mean only",ylab="Trend in mean and Cv",main="With transf bias \n adjustment",cex.main=0.9)
 lines(seq(100,100000,100),seq(100,100000,100))
 par(mfrow=c(1,1))
@@ -1463,12 +1474,12 @@ par(mfrow=c(1,1))
 # Compare histograms to evaluate impact of transformation bias 
 par(mfrow=c(1,2))
 par(mar=c(5.1,5.1,4.1,2.1),mgp=c(4,1,0))
-hist(Q_99_at_n_5a_no_trans_adj_time/Q_99_at_n_med_only_time,breaks=seq(0.8,1.8,0.1),xlab="100Y flood magnification \n (Trend in mean and Cv/ \n Trend in mean only)",ylim=c(0,10),
+hist(Q_99_at_n_5a_no_trans_adj_urb/Q_99_at_n_med_only_urb,breaks=seq(0.8,1.8,0.1),xlab="100Y flood magnification \n (Trend in mean and Cv/ \n Trend in mean only)",ylim=c(0,10),
      cex.lab=0.8,
      main="No transf bias \n adjustment",
      cex.main=0.9,
      cex.axis=0.85)
-hist(Q_99_at_n_5a_time/Q_99_at_n_med_only_time,breaks=seq(0.8,1.8,0.1),xlab="100Y flood magnification \n (Trend in mean and Cv/ \n Trend in mean only)",ylim=c(0,10),
+hist(Q_99_at_n_5a_urb/Q_99_at_n_med_only_urb,breaks=seq(0.8,1.8,0.1),xlab="100Y flood magnification \n (Trend in mean and Cv/ \n Trend in mean only)",ylim=c(0,10),
      cex.lab=0.8,
      main="With transf bias \n adjustment",
      cex.main=0.9,
@@ -1480,7 +1491,7 @@ par(mar=c(5.1,4.1,4.1,2.1),mgp=c(3,1,0))
 
 
 # FIX: Compare R2 of +mean,-Cv and + mean,+Cv
-boxplot(rsquared_5a_vminus_time,rsquared_5a_time,
+boxplot(rsquared_5a_vminus_urb,rsquared_5a_urb,
         names=c(expression(paste("+",mu,", -",Cv)), 
                 expression(paste("+",mu,", +",Cv))),
         ylab=expression(R^2))
