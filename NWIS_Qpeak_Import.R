@@ -1045,6 +1045,8 @@ output_GLM_vplus_sig05_urb <- output_adq_urb[which(output_adq_urb$cc1_GLM_urb>0
 
 # Count rows and make tables
 
+# FIX: STRAIGHTEN OUT SO THERE ARE NINE DISCRETE CATS
+
 nrows_lin_time <- c(nrow(output_lin_mminus_sig05_vminus_sig05_time),
                nrow(output_lin_mminus_sig05_vplus_sig05_time),
                nrow(output_lin_mplus_sig05_vminus_sig05_time),
